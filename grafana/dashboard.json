@@ -1,0 +1,39 @@
+{
+  "title": "Falco Security Events Overview",
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Events Rate (5m)",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 6},
+      "targets": [{"expr": "sum(rate(syscall_events_total[5m]))"}]
+    },
+    {
+      "type": "bargauge",
+      "title": "Events by Priority",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 6},
+      "targets": [{"expr": "sum by (priority) (rate(syscall_events_total[5m]))"}]
+    },
+    {
+      "type": "piechart",
+      "title": "Events by Rule Category",
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 6},
+      "targets": [{"expr": "sum by (rule_category) (rate(syscall_events_total[5m]))"}]
+    },
+    {
+      "type": "table",
+      "title": "Top Rules",
+      "gridPos": {"x": 0, "y": 6, "w": 12, "h": 8},
+      "targets": [{"expr": "topk(10, sum by (rule) (rate(syscall_events_total[5m])))"}]
+    },
+    {
+      "type": "stat",
+      "title": "Last Event Timestamp",
+      "gridPos": {"x": 12, "y": 6, "w": 12, "h": 8},
+      "targets": [{"expr": "max(syscall_last_event_timestamp_seconds)"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1
+}

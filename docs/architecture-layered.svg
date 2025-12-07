@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="780" viewBox="0 0 1280 780">
+  <defs>
+    <style>
+      .box{fill:#f7f9fc;stroke:#cfd8e3;stroke-width:2;rx:12;}
+      .title{font:700 18px system-ui,Segoe UI,Roboto,Helvetica,Arial;fill:#0f172a;}
+      .item{font:500 15px system-ui,Segoe UI,Roboto,Helvetica,Arial;fill:#334155;}
+      .sub{font:400 13px system-ui,Segoe UI,Roboto,Helvetica,Arial;fill:#64748b;}
+    </style>
+  </defs>
+  <!-- Background -->
+  <rect x="20" y="20" width="1240" height="740" fill="#ffffff" stroke="#e5e7eb" rx="16"/>
+
+  <!-- Application Layer -->
+  <rect class="box" x="40" y="40" width="1200" height="130"/>
+  <text class="title" x="60" y="75">应用层</text>
+  <rect class="box" x="60" y="90" width="560" height="70"/>
+  <text class="item" x="80" y="120">Web/API 接口</text>
+  <text class="sub"  x="80" y="140">REST + SSE/WebSocket；容器ID查询；实时推送</text>
+  <rect class="box" x="640" y="90" width="560" height="70"/>
+  <text class="item" x="660" y="120">可视化控制台（总览/容器日志/告警分页）</text>
+  <text class="sub"  x="660" y="140">筛选、图表与表格、HBT侧栏</text>
+
+  <!-- Coordination Layer -->
+  <rect class="box" x="40" y="190" width="1200" height="150"/>
+  <text class="title" x="60" y="220">协同执行层</text>
+  <rect class="box" x="60" y="235" width="370" height="85"/>
+  <text class="item" x="80" y="265">Agent 集群</text>
+  <text class="sub"  x="80" y="285">Falco 日志采集、Prometheus Exporter 指标暴露</text>
+  <rect class="box" x="450" y="235" width="370" height="85"/>
+  <text class="item" x="470" y="265">工具链集成平台</text>
+  <text class="sub"  x="470" y="285">PromQL 模板封装、缓存与聚合、事件路由</text>
+  <rect class="box" x="840" y="235" width="370" height="85"/>
+  <text class="item" x="860" y="265">强化学习引擎（预留）</text>
+  <text class="sub"  x="860" y="285">攻防路径实时优化</text>
+
+  <!-- Intelligence Layer -->
+  <rect class="box" x="40" y="360" width="1200" height="150"/>
+  <text class="title" x="60" y="390">智能中枢层</text>
+  <rect class="box" x="60" y="405" width="370" height="85"/>
+  <text class="item" x="80" y="435">解析中枢（Hanabi）</text>
+  <text class="sub"  x="80" y="455">事件解析/分类、HBT 构建、预热/检测切换、语义匹配</text>
+  <rect class="box" x="450" y="405" width="370" height="85"/>
+  <text class="item" x="470" y="435">推理中枢</text>
+  <text class="sub"  x="470" y="455">规则+阈值告警评分与分级（可扩嵌入/LLM）</text>
+  <rect class="box" x="840" y="405" width="370" height="85"/>
+  <text class="item" x="860" y="435">生成中枢（预留）</text>
+  <text class="sub"  x="860" y="455">处置建议与自动化操作</text>
+
+  <!-- Data Layer -->
+  <rect class="box" x="40" y="530" width="1200" height="140"/>
+  <text class="title" x="60" y="560">数据层</text>
+  <rect class="box" x="60" y="575" width="370" height="85"/>
+  <text class="item" x="80" y="605">Prometheus TSDB</text>
+  <text class="sub"  x="80" y="625">事件计数、最新时间戳、告警计数</text>
+  <rect class="box" x="450" y="575" width="370" height="85"/>
+  <text class="item" x="470" y="605">HBT 快照存储/缓存</text>
+  <text class="sub"  x="470" y="625">TreeNode JSON、容器画像</text>
+  <rect class="box" x="840" y="575" width="370" height="85"/>
+  <text class="item" x="860" y="605">原始事件缓存（可选）</text>
+  <text class="sub"  x="860" y="625">最近 N 条 Falco 事件</text>
+
+  <!-- Collection Infra -->
+  <rect class="box" x="40" y="690" width="1200" height="50"/>
+  <text class="title" x="60" y="720">采集基础设施：Falco Daemon + 规则集（JSON 输出 / healthz / webserver）</text>
+</svg>

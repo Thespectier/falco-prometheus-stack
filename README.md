@@ -28,6 +28,12 @@
 └─────────────┘
 ```
 
+架构分层图（SVG）：
+
+![Layered Architecture](docs/architecture-layered.svg)
+
+更多细节请参见 `ARCHITECTURE.md`（模块职责、数据流与配置要点）。
+
 ## 🚀 快速开始
 
 ### 前置要求
@@ -84,9 +90,23 @@ finally:
 python main.py
 ```
 
+或使用一键栈（需要 Docker）：
+
+```bash
+docker compose up -d
+# Prometheus: http://localhost:9090
+# Grafana:    http://localhost:3000  (默认密码 admin/admin)
+```
+
 ### 查看 Prometheus 指标
 
-访问 `http://localhost:9090` 打开 Prometheus Web UI，查询 Falco 安全事件指标。
+访问 `http://localhost:9090` 打开 Prometheus Web UI，查询安全事件指标。
+
+示例查询：
+- 事件总数：`sum(rate(syscall_events_total[5m]))`
+- 按优先级：`sum by(priority) (rate(syscall_events_total[5m]))`
+- 最新事件时间：`syscall_last_event_timestamp_seconds`
+- 分类维度（rule_category）：`sum by(rule_category) (rate(syscall_events_total[5m]))`
 
 
 ## 🔧 核心组件
