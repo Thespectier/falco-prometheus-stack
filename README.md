@@ -30,7 +30,7 @@
 
 架构分层图（SVG）：
 
-![Layered Architecture](docs/architecture-layered.svg)
+![四层架构](docs/architecture-4layer.svg)
 
 更多细节请参见 `ARCHITECTURE.md`（模块职责、数据流与配置要点）。
 
