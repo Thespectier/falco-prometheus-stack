@@ -1,0 +1,79 @@
+openapi: 3.0.3
+info:
+  title: Falco/Hanabi Monitoring API
+  version: 0.1.0
+servers:
+  - url: http://localhost:8000
+paths:
+  /api/containers:
+    get:
+      summary: List containers with metrics
+      parameters: []
+      responses:
+        '200': { description: OK }
+  /api/overview:
+    get:
+      summary: Overview metrics and distributions
+      responses:
+        '200': { description: OK }
+  /api/containers/{id}/logs:
+    get:
+      summary: Container logs
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: start
+          schema: { type: string, format: date-time }
+        - in: query
+          name: end
+          schema: { type: string, format: date-time }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: priority
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/containers/{id}/alerts:
+    get:
+      summary: Container alerts
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: start
+          schema: { type: string, format: date-time }
+        - in: query
+          name: end
+          schema: { type: string, format: date-time }
+        - in: query
+          name: priority
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/hbt/{id}:
+    get:
+      summary: HBT snapshot
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/stream/{id}:
+    get:
+      summary: SSE stream for events and alerts
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }

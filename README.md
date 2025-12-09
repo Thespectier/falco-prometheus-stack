@@ -32,7 +32,18 @@
 
 ![四层架构](docs/architecture-4layer.svg)
 
-更多细节请参见 `ARCHITECTURE.md`（模块职责、数据流与配置要点）。
+## 📚 文档导航
+
+- 架构分层图：`docs/architecture-4layer.svg`
+- 系统架构说明：`docs/system-architecture.md`
+- 技术栈（最终版）：`docs/tech-stack.md`
+- 后端接口契约：`docs/backend-api-contract.md`、`docs/interfaces/openapi.yaml`
+- 前端初始化指导：`docs/frontend-setup.md`
+- SSE 事件封装：`docs/sse-envelope.md`
+- PromQL 模板与标签治理：`docs/promql-templates.md`
+- 测试计划：`docs/test-plan.md`
+- 开发路线图：`docs/roadmap.md`
+- Issue 标签规范：`docs/issue-labels.md`
 
 ## 🚀 快速开始
 

@@ -1,50 +1,38 @@
-# Web 应用技术栈选型说明
+# Web 应用技术栈选型说明（最终版）
 
 ## 选型目标
 - 满足实时数据（SSE/WebSocket）、高并发 PromQL 查询、丰富图表与数据表展示、HBT 树可视化、良好可维护性与扩展性。
+- 保留 Python 版本要求：`>=3.14`。
 
-## 前端选型（推荐：React 18 + TypeScript + Vite）
-- 理由：
-  - 生态成熟：图表（ECharts）、数据表（AG Grid/TanStack Table）、状态管理（Zustand/Redux）、请求缓存（TanStack Query）。
-  - 类型安全：TypeScript 强约束，长期维护更可靠。
-  - 实时支持：原生 EventSource 与成熟 WebSocket 生态；虚拟滚动与性能优化方案丰富。
-- 组件与库：
-  - UI：Ant Design 或 MUI
-  - 路由：React Router
-  - 数据层：TanStack Query（缓存/重试/分页）；Zustand 或 Redux Toolkit（局部状态）
-  - 图表：Apache ECharts（含 Tree 图，用于 HBT 画像）
-  - 数据表：AG Grid（社区版）或 TanStack Table + 虚拟滚动
-  - 测试：Vitest + React Testing Library
-  - 质量：ESLint + Prettier + TypeScript 严格模式
-- 页面结构：
-  - 总览页：指标卡片、优先级/分类分布、Top 规则；容器与时间范围筛选。
-  - 容器日志页：可筛选表格、实时 SSE 追加、HBT 树侧栏。
-  - 告警信息页：告警列表、趋势与 TopN、操作（确认/备注），实时订阅。
+## 前端选型（最终）
+- 框架与工具：React 18 + TypeScript + Vite；UI：Ant Design；路由：React Router。
+- 服务器状态：TanStack Query（请求/缓存/重试/分页/并发）。
+- 本地状态：Zustand。
+- 数据表：TanStack Table + `@tanstack/react-virtual`。
+- 图表与画像：Apache ECharts（含 Tree/Graph，统一图表与 HBT 可视化）。
+- 实时通信：SSE（封装 `useEventSource`，心跳、断线重连与批量合并刷新）。
+- 测试与质量：Vitest + React Testing Library；ESLint + Prettier + TS 严格模式。
 
-## 前端备选
-- Vue 3 + TypeScript：上手快、生态完整；但复杂数据表与 TS 体验略逊。
-- SvelteKit：轻量与性能好；生态与团队熟悉度存在风险，不推荐用于企业级控制台首期。
+## 后端选型（最终）
+- FastAPI + Uvicorn。
+- Prometheus 查询：使用 `httpx` 调用 Prometheus HTTP API（`/api/v1/query_range`）；统一 5m/15m 窗口与结果缓存策略。
+- 实时通道：SSE（`StreamingResponse`）。
+- 缓存：内存 LRU/TTL（PromQL 结果）。
+- 鉴权与治理：JWT/Token、RBAC（命名空间/容器维度）、限流与审计。
+- 可观测：API 自指标（耗时、错误率、SSE连接数）暴露到 Prometheus；健康探针。
 
-## 后端选型（API 网关）
-- 推荐：FastAPI + Uvicorn
-  - 理由：类型契约（Pydantic）、高性能 ASGI、原生 WebSocket 与 SSE 友好、路由清晰。
-  - Prometheus 查询：HTTP API（`/api/v1/query_range`），使用 `httpx`；结果缓存（5m/15m 窗口）。
-  - SSE：`StreamingResponse` 实现事件与告警实时推送；心跳与断线重连。
-- 备选：Flask（仓库已有依赖）
-  - 快速起步；WebSocket/SSE 需额外库，类型契约弱；中大型项目维护成本偏高。
-
-## 集成契约
-- API 路由：`/api/containers`、`/api/containers/{id}/logs`、`/api/containers/{id}/alerts`、`/api/overview`、`/api/hbt/{id}`、`/api/stream/{id}`
-- 前端数据层：`useOverviewQuery`、`useContainerLogsQuery`、`useAlertsQuery`、`useHbtQuery`；`useEventSource`
+## 集成契约（摘要）
+- API 路由：`/api/containers`、`/api/containers/{id}/logs`、`/api/containers/{id}/alerts`、`/api/overview`、`/api/hbt/{id}`、`/api/stream/{id}`。
+- 前端数据层：`useOverviewQuery`、`useContainerLogsQuery`、`useAlertsQuery`、`useHbtQuery`；`useEventSource`（SSE）。
 - PromQL 模板：统一 5m/15m 窗口；标签维度控制（容器/规则/优先级/分类）。
 
 ## 性能与可靠性
-- 虚拟滚动、懒加载与分页（日志/告警）
-- SSE 背压与批量合并（500ms 刷新）
-- 断线重连与指数退避（SSE/WebSocket）
-- 查询结果缓存与降采样
+- 虚拟滚动、懒加载与分页（日志/告警）。
+- SSE 背压与批量合并（如 500ms 刷新）。
+- 断线重连与指数退避（SSE/WebSocket）。
+- 查询结果缓存与降采样；标签基数治理。
 
 ## 最终结论
-- 前端优选：React + TypeScript + Vite + Ant Design + TanStack Query + AG Grid + ECharts
-- 后端优选：FastAPI + Uvicorn（或 Flask 作为备选）
-- 可视化复用：支持嵌入既有 Grafana 面板，与应用内 ECharts 图表共存
+- 前端：React + TypeScript + Vite + Ant Design + TanStack Query + TanStack Table + ECharts。
+- 后端：FastAPI + Uvicorn；保留 Python `>=3.14`。
+- 可视化：嵌入 Grafana 面板，与应用内 ECharts 并存。

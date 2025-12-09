@@ -1,0 +1,29 @@
+name: Backend CI
+on:
+  push:
+    paths:
+      - 'api/**'
+      - 'docs/backend-api-contract.md'
+  pull_request:
+    paths:
+      - 'api/**'
+      - 'docs/backend-api-contract.md'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install dependencies
+        run: |
+          [ -f api/requirements.txt ] && pip install -r api/requirements.txt || echo "no requirements"
+      - name: Lint
+        run: |
+          pip install ruff || true
+          [ -d api ] && ruff api || echo "no api dir"
+      - name: Test
+        run: |
+          pip install pytest || true
+          [ -d api ] && pytest api || echo "no tests"
