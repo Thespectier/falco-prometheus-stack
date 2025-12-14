@@ -47,7 +47,7 @@ class DockerLogQueue:
         
     def _stream_logs(self):
         """Internal method to stream logs (runs in background thread)."""
-        log_stream = self.container.logs(stream=True, follow=True, stdout=True, stderr=True, since=int(datetime.now().timestamp()))
+        log_stream = self.container.logs(stream=True, follow=True, stdout=True, stderr=False, since=int(datetime.now().timestamp()))
         buffer = ""
         
         try:

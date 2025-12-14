@@ -101,14 +101,6 @@ finally:
 python main.py
 ```
 
-或使用一键栈（需要 Docker）：
-
-```bash
-docker compose up -d
-# Prometheus: http://localhost:9090
-# Grafana:    http://localhost:3000  (默认密码 admin/admin)
-```
-
 ### 查看 Prometheus 指标
 
 访问 `http://localhost:9090` 打开 Prometheus Web UI，查询安全事件指标。
@@ -119,6 +111,68 @@ docker compose up -d
 - 最新事件时间：`syscall_last_event_timestamp_seconds`
 - 分类维度（rule_category）：`sum by(rule_category) (rate(syscall_events_total[5m]))`
 
+### Docker 一键系统操作指引
+
+#### 启动与构建
+- 初始化并启动全部服务（后端、前端、Falco、Exporter、Prometheus、Grafana）：
+```bash
+docker compose up -d --build
+```
+- 查看服务状态：
+```bash
+docker compose ps
+```
+
+#### 服务入口
+- `API`：`http://<服务器IP>:18000`（后端 REST + 文档 `/docs`）
+- `Web`：`http://<服务器IP>:8081`（前端控制台，已反向代理 `/api` 到后端）
+- `Prometheus`：`http://<服务器IP>:9090`（查询指标）
+- `Grafana`：`http://<服务器IP>:3000`（默认账户 `admin/admin`）
+
+#### 常用运维命令
+- 重启单个服务：
+```bash
+docker compose restart api
+docker compose restart hanabi_worker
+docker compose restart exporter
+docker compose restart falco
+docker compose restart prometheus
+docker compose restart web
+```
+- 查看实时日志：
+```bash
+docker compose logs -f hanabi_worker
+docker compose logs -f exporter
+docker compose logs -f api
+```
+- 停止并移除：
+```bash
+docker compose down
+# 如需清理数据卷（慎用）
+docker compose down -v
+```
+
+#### 关键环境变量（已在 compose 配置）
+- `FALCO_CONTAINER=falco`（Exporter/Worker 读取 Falco 日志的容器名）
+- `HBT_STORAGE_PATH=/app/data/hbt`（Hanabi 画像快照目录）
+- `DATA_DIR=/app/data`（SQLite 明细数据库目录，文件为 `/app/data/logs.db`）
+- `PROMETHEUS_URL=http://prometheus:9090`（API 查询 Prometheus 的地址）
+- `LOG_STORAGE_DEBUG=1`（可选，开启日志入库调试输出）
+
+#### 快速自检流程
+- Falco：`docker compose logs -f falco` 应持续输出 JSON 行事件
+- Exporter：`curl http://<服务器IP>:9876/metrics | head` 能看到 `syscall_events_total` 等指标
+- Prometheus：在 Web UI 查询
+  - `sum(rate(syscall_events_total[5m]))` 与 `syscall_last_event_timestamp_seconds` 有结果
+- API：
+  - `curl http://<服务器IP>:18000/api/containers` 返回容器列表
+  - `curl http://<服务器IP>:18000/api/containers/<id>/logs` 返回该容器的历史明细
+- Web：打开 `http://<服务器IP>:8081`，总览与日志页面应正常显示
+
+#### 问题定位提示
+- 容器列表为空：检查 Prometheus 是否抓取到 Exporter（`prometheus.yml` 目标应为 `exporter:9876`）
+- 日志页为空：确认 `hanabi_worker` 正在写入 `/app/data/logs.db`，API 与 Web 挂载了共享卷 `shared_data`
+- 仅新日志可见：队列默认只拉取启动后的新事件（如需历史，需调整采集策略或输出通道）
 
 ## 🔧 核心组件
 

@@ -61,7 +61,7 @@ services:
       - HBT_STORAGE_PATH=/app/data/hbt
       - DATA_DIR=/app/data
     ports:
-      - "8000:8000"
+      - "18000:8000"
     volumes:
       - shared_data:/app/data
     depends_on:
