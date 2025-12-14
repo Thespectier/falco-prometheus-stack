@@ -1,0 +1,42 @@
+# Base python environment
+FROM python:3.14-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy python dependencies
+COPY pyproject.toml .
+
+# Install dependencies (using pip for simplicity in container, though uv is used locally)
+# We need to export dependencies from pyproject.toml or install manually. 
+# For now, let's install the key libraries directly to avoid complex build steps
+RUN pip install --no-cache-dir \
+    docker \
+    prometheus-client \
+    fastapi \
+    uvicorn[standard] \
+    httpx \
+    pydantic-settings \
+    gunicorn \
+    python-multipart \
+    torch \
+    transformers
+
+# Copy application code
+COPY . .
+
+# Environment variables
+ENV PYTHONPATH=/app
+ENV HBT_STORAGE_PATH=/app/data/hbt
+ENV DATA_DIR=/app/data
+
+# Ensure data directories exist and are writable
+RUN mkdir -p /app/data/hbt && chmod -R 777 /app/data
+
+# Default command (overridden in docker-compose)
+CMD ["python", "api/app/main.py"]

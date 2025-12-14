@@ -1,0 +1,55 @@
+export interface PriorityDistribution {
+  priority: string;
+  value: number;
+}
+
+export interface CategoryDistribution {
+  category: string;
+  value: number;
+}
+
+export interface OverviewMetrics {
+  total_events_rate: number;
+  priority_distribution: PriorityDistribution[];
+  category_distribution: CategoryDistribution[];
+  active_containers_count: number;
+}
+
+export interface ContainerSummary {
+  id: string;
+  name: string;
+  last_seen: number;
+  event_rate: number;
+}
+
+export interface AlertStat {
+  rule: string;
+  priority: string;
+  rate: number;
+}
+
+export interface ContainerAlerts {
+  container_id: string;
+  alerts_stats: AlertStat[];
+  note?: string;
+}
+
+export interface HbtSnapshot {
+  container_id: string;
+  hbt_structure: any; // Using any for the complex tree structure for now
+}
+
+export interface LogEvent {
+  timestamp: string;
+  rule: string;
+  priority: string;
+  output: string;
+  source: string;
+  tags: string[];
+}
+
+export interface ContainerLogsResponse {
+    container_id: string;
+    logs: LogEvent[];
+    warning?: string;
+}

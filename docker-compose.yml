@@ -1,30 +1,82 @@
 version: '3.8'
+
 services:
+  # 1. Falco Security Engine
   falco:
     image: falcosecurity/falco:latest
+    container_name: falco
     privileged: true
-    command: ["falco", "-o", "json_output=true", "-o", "json_include_output_fields_property=true"]
+    # Enable JSON output for programmatic consumption
+    command: ["falco", "-o", "json_output=true", "-o", "json_include_output_fields_property=true", "-o", "webserver.enabled=false"]
     ports:
-      - "8765:8765"
-    environment:
-      - FALCO_HOSTNAME=falco
+      - "8765:8765" # Only if webserver enabled, but we use logs
     volumes:
       - ./falco/falco.yaml:/etc/falco/falco.yaml:ro
       - ./falco/custom_rules.yaml:/etc/falco/falco_rules.local.yaml:ro
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys/kernel/tracing:/sys/kernel/tracing:ro 
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - /etc:/host/etc:ro
+      - /proc:/host/proc:ro
 
+  # 2. Prometheus Exporter (Converts Falco logs to Metrics)
   exporter:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile.backend
     command: python prometheus/exporter.py
     environment:
       - FALCO_CONTAINER=falco
-    ports:
-      - "9876:9876"
+      - PYTHONUNBUFFERED=1
     depends_on:
       - falco
     volumes:
-      - ./:/app
+      - /var/run/docker.sock:/var/run/docker.sock # Needs access to read Falco logs
 
+  # 3. Hanabi Worker (Processes logs for HBT & Storage)
+  hanabi_worker:
+    build: 
+      context: .
+      dockerfile: Dockerfile.backend
+    command: python hanabi/worker.py
+    environment:
+      - FALCO_CONTAINER=falco
+      - HBT_STORAGE_PATH=/app/data/hbt
+      - DATA_DIR=/app/data
+      - PYTHONUNBUFFERED=1
+      - LOG_STORAGE_DEBUG=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - shared_data:/app/data
+    depends_on:
+      - falco
+
+  # 4. API Backend (FastAPI)
+  api:
+    build: 
+      context: .
+      dockerfile: Dockerfile.backend
+    command: uvicorn api.app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - HBT_STORAGE_PATH=/app/data/hbt
+      - DATA_DIR=/app/data
+    ports:
+      - "8000:8000"
+    volumes:
+      - shared_data:/app/data
+    depends_on:
+      - prometheus
+      - hanabi_worker
+
+  # 5. Frontend (React + Nginx)
+  web:
+    build: ./web
+    ports:
+      - "8081:80"
+    depends_on:
+      - api
+
+  # 6. Prometheus (Metrics DB)
   prometheus:
     image: prom/prometheus:latest
     ports:
@@ -34,6 +86,7 @@ services:
     depends_on:
       - exporter
 
+  # 7. Grafana (Optional Visualization)
   grafana:
     image: grafana/grafana-oss:latest
     ports:
@@ -44,3 +97,6 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - ./grafana:/var/lib/grafana/dashboards
+
+volumes:
+  shared_data:

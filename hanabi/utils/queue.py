@@ -47,8 +47,7 @@ class DockerLogQueue:
         
     def _stream_logs(self):
         """Internal method to stream logs (runs in background thread)."""
-        # Use since='now' or since=datetime.now() to only get new logs from this point forward
-        log_stream = self.container.logs(stream=True, follow=True, stdout=True, stderr=False, since=datetime.now())
+        log_stream = self.container.logs(stream=True, follow=True, stdout=True, stderr=True, since=int(datetime.now().timestamp()))
         buffer = ""
         
         try:
