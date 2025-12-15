@@ -13,8 +13,11 @@ class EventCounter:
         self.timestamps.append(now)
         self.count += 1
 
-        # 清理过期事件（超过10秒的）
-        while self.timestamps and now - self.timestamps[0] > 1000 * 10:
+        self.clean_expired_events()
+
+    def clean_expired_events(self):
+        now = int(time.time() * 1000)
+        while self.timestamps and now - self.timestamps[0] > 1000 * 60:
             self.timestamps.popleft()
             self.count -= 1
 
