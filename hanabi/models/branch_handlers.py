@@ -54,8 +54,9 @@ def update_learn_state(eventCounter: EventCounter):
     earliest_time = eventCounter.timestamps[0] if eventCounter.timestamps else now
     print("training, eventCounter.get_rate():", eventCounter.get_rate())
     print("time window:", now - earliest_time)
-    if now - earliest_time >= 1000 * 10:
-        if eventCounter.get_rate() < 2:
+    if now - earliest_time >= 1000 * 60:
+        eventCounter.clean_expired_events()  # 清理过期事件
+        if eventCounter.get_rate() < 1:
             learnState = False
             print("Learning completed! Switching to detecting...")
 

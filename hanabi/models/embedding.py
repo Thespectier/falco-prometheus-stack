@@ -21,8 +21,8 @@ LOGGER = logging.getLogger(__name__)
 
 DEFAULT_MODEL_NAME = "BAAI/bge-m3"
 DEFAULT_BATCH_SIZE = 16
-DEFAULT_MAX_LENGTH = 512
-DEFAULT_THRESHOLD = 0.83
+DEFAULT_MAX_LENGTH = 256
+DEFAULT_THRESHOLD = 0.80
 
 
 def _batch_iterator(items: Sequence[str], batch_size: int) -> Iterator[List[str]]:
