@@ -33,9 +33,22 @@ const HbtVisualizer: React.FC = () => {
     retry: false
   });
 
+  const normalizeTree = React.useCallback((node: any) => {
+    if (!node || typeof node !== 'object') return node;
+    const childrenObj = node.children;
+    let childrenArr: any[] = [];
+    if (childrenObj && !Array.isArray(childrenObj)) {
+      childrenArr = Object.keys(childrenObj).map((k) => normalizeTree(childrenObj[k]));
+    } else if (Array.isArray(childrenObj)) {
+      childrenArr = childrenObj.map((c: any) => normalizeTree(c));
+    }
+    return { ...node, children: childrenArr };
+  }, []);
+
   const chartOption: echarts.EChartsOption = useMemo(() => {
     if (!hbtData || !hbtData.hbt_structure) return {};
 
+    const data = normalizeTree(hbtData.hbt_structure);
     return {
       tooltip: {
         trigger: 'item',
@@ -53,7 +66,7 @@ const HbtVisualizer: React.FC = () => {
       series: [
         {
           type: 'tree',
-          data: [hbtData.hbt_structure],
+          data: [data],
           top: '1%',
           left: '7%',
           bottom: '1%',
