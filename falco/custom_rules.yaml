@@ -1,6 +1,6 @@
 - rule: process
   desc: process
-  condition: evt.category=process and proc.name != "<NA>" and not container.name in ("host","falco","falco-prometheus-stack_hanabi_worker_1","falco-prometheus-stack_web_1","falco-prometheus-stack_prometheus_1","falco-prometheus-stack_api_1","falco-prometheus-stack_grafana_1","falco-prometheus-stack_exporter_1")
+  condition: evt.category=process and proc.name != "<NA>" and container.name = "test-container"
   output: >
     evt.num=%evt.num
     evt.type=%evt.type
@@ -24,7 +24,7 @@
 
 - rule: net
   desc: net
-  condition: evt.category=net and proc.name != "<NA>" and not container.name in ("host","falco","falco-prometheus-stack_hanabi_worker_1","falco-prometheus-stack_web_1","falco-prometheus-stack_prometheus_1","falco-prometheus-stack_api_1","falco-prometheus-stack_grafana_1","falco-prometheus-stack_exporter_1")
+  condition: evt.category=net and proc.name != "<NA>" and container.name = "test-container"
   output: >
     evt.num=%evt.num
     evt.type=%evt.type
@@ -46,7 +46,7 @@
 
 - rule: file
   desc: file
-  condition: evt.category=file and proc.name != "<NA>" and not container.name in ("host","falco","falco-prometheus-stack_hanabi_worker_1","falco-prometheus-stack_web_1","falco-prometheus-stack_prometheus_1","falco-prometheus-stack_api_1","falco-prometheus-stack_grafana_1","falco-prometheus-stack_exporter_1")
+  condition: evt.category=file and proc.name != "<NA>" and container.name = "test-container"
   output: >
     evt.num=%evt.num
     evt.type=%evt.type

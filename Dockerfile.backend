@@ -25,7 +25,8 @@ RUN pip install --no-cache-dir \
     gunicorn \
     python-multipart \
     torch \
-    transformers
+    transformers \
+    rich
 
 # Copy application code
 COPY . .

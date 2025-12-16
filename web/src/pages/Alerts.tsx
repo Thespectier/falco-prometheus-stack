@@ -1,21 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Table, Tag, Select, Space, Alert, Empty, Spin } from 'antd';
-import { WarningOutlined, FilterOutlined } from '@ant-design/icons';
+import { Card, Table, Select, Space, Alert, Empty, Spin, Typography } from 'antd';
+import { WarningOutlined } from '@ant-design/icons';
 import { api } from '../api/client';
 import type { ColumnsType } from 'antd/es/table';
-import { AlertStat } from '../api/types';
 
 const { Option } = Select;
 
-const PRIORITY_COLORS: Record<string, string> = {
-  'Critical': 'red',
-  'Error': 'volcano',
-  'Warning': 'orange',
-  'Notice': 'gold',
-  'Info': 'blue',
-  'Debug': 'default'
-};
+const { Text } = Typography;
 
 const Alerts: React.FC = () => {
   // 1. Fetch Active Containers to populate selector
@@ -25,7 +17,7 @@ const Alerts: React.FC = () => {
   });
 
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
-  const [priorityFilter, setPriorityFilter] = useState<string | undefined>(undefined);
+  const [windowSeconds, setWindowSeconds] = useState<number>(300);
 
   // Auto-select first container
   useEffect(() => {
@@ -40,43 +32,23 @@ const Alerts: React.FC = () => {
     isLoading, 
     error 
   } = useQuery({
-    queryKey: ['alerts', selectedContainerId, priorityFilter],
+    queryKey: ['alerts', selectedContainerId, windowSeconds],
     queryFn: () => selectedContainerId 
-      ? api.getContainerAlerts(selectedContainerId, priorityFilter) 
+      ? api.getContainerAlerts(selectedContainerId!, windowSeconds) 
       : Promise.reject('No container selected'),
     enabled: !!selectedContainerId,
     refetchInterval: 10000
   });
 
-  const columns: ColumnsType<AlertStat> = [
-    {
-      title: 'Rule',
-      dataIndex: 'rule',
-      key: 'rule',
-      render: (text) => <b>{text}</b>,
-    },
-    {
-      title: 'Priority',
-      dataIndex: 'priority',
-      key: 'priority',
-      render: (priority) => (
-        <Tag color={PRIORITY_COLORS[priority] || 'default'}>
-          {priority.toUpperCase()}
-        </Tag>
-      ),
-      sorter: (a, b) => {
-        const priorities = ['Critical', 'Error', 'Warning', 'Notice', 'Info', 'Debug'];
-        return priorities.indexOf(a.priority) - priorities.indexOf(b.priority);
-      },
-    },
-    {
-      title: 'Rate (Last 5m)',
-      dataIndex: 'rate',
-      key: 'rate',
-      render: (rate) => `${rate.toFixed(4)} alerts/sec`,
-      sorter: (a, b) => a.rate - b.rate,
-      defaultSortOrder: 'descend'
-    },
+  const columns: ColumnsType<any> = [
+    { title: 'Container', dataIndex: 'container_id', key: 'container_id' },
+    { title: 'Time', dataIndex: 'timestamp', key: 'timestamp', render: (ts) => new Date(ts).toLocaleString() },
+    { title: 'Category', dataIndex: 'category', key: 'category' },
+    { title: 'Reason', dataIndex: 'reason', key: 'reason' },
+    { title: 'Event Type', dataIndex: 'evt_type', key: 'evt_type' },
+    { title: 'Process', dataIndex: 'proc_name', key: 'proc_name' },
+    { title: 'FD Name', dataIndex: 'fd_name', key: 'fd_name' },
+    { title: 'Output', dataIndex: 'output', key: 'output', render: (text) => <Text code>{text}</Text> },
   ];
 
   if (!containers || containers.length === 0) {
@@ -110,39 +82,35 @@ const Alerts: React.FC = () => {
             </Space>
 
             <Space>
-              <FilterOutlined />
-              <span>Priority:</span>
+              <span>Window:</span>
               <Select
-                style={{ width: 150 }}
-                value={priorityFilter}
-                onChange={setPriorityFilter}
-                allowClear
-                placeholder="All Priorities"
+                style={{ width: 140 }}
+                value={windowSeconds}
+                onChange={setWindowSeconds}
               >
-                {Object.keys(PRIORITY_COLORS).map(p => (
-                  <Option key={p} value={p}>
-                    <Tag color={PRIORITY_COLORS[p]}>{p}</Tag>
-                  </Option>
-                ))}
+                <Option value={300}>5m</Option>
+                <Option value={900}>15m</Option>
+                <Option value={1800}>30m</Option>
+                <Option value={0}>All Time</Option>
               </Select>
             </Space>
           </Space>
         </Card>
 
         {/* Alerts Table */}
-        <Card 
-          title={
-            <Space>
-              <WarningOutlined style={{ color: '#faad14' }} />
-              <span>Alert Statistics (Real-time)</span>
-            </Space>
-          }
-          extra={alertsData?.note && <Tag color="blue">{alertsData.note}</Tag>}
+          <Card 
+            title={
+              <Space>
+                <WarningOutlined style={{ color: '#faad14' }} />
+              <span>Alert Details</span>
+              </Space>
+            }
+          extra={null}
         >
           {error && (
              <Alert 
                message="Error loading alerts" 
-               description="Could not fetch alert statistics. Ensure Prometheus is running." 
+               description="Could not fetch alert details. Ensure API and alerts ingestor are running." 
                type="error" 
                showIcon 
                style={{ marginBottom: 16 }}
@@ -155,11 +123,12 @@ const Alerts: React.FC = () => {
             </div>
           ) : (
             <Table 
-              dataSource={alertsData?.alerts_stats || []} 
+              dataSource={alertsData?.alerts || []} 
               columns={columns} 
-              rowKey={(record) => `${record.rule}-${record.priority}`}
-              pagination={{ pageSize: 10 }}
-              locale={{ emptyText: 'No alerts detected in the last 5 minutes' }}
+              rowKey={(record) => `${record.container_id}-${record.timestamp}-${record.evt_type}-${record.proc_name}-${record.fd_name}`}
+              pagination={{ pageSize: 20 }}
+              scroll={{ x: 1200 }}
+              locale={{ emptyText: windowSeconds && windowSeconds > 0 ? 'No alerts detected in selected window' : 'No alerts detected' }}
             />
           )}
         </Card>

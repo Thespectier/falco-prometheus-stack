@@ -1,38 +1,18 @@
-from fastapi import APIRouter, HTTPException, Query
-from typing import List, Optional
-from api.app.services.prometheus import prometheus_service
+from fastapi import APIRouter
+from typing import Optional
+from api.app.services.log_storage import log_storage
 
 router = APIRouter()
 
 @router.get("")
 async def get_container_alerts(
     id: str,
-    priority: Optional[str] = None
+    window_seconds: int = 0,
+    limit: int = 500,
+    offset: int = 0
 ):
-    """
-    Get alerts statistics for a container.
-    Derived from Prometheus metrics (high priority events).
-    """
-    # Construct query
-    # Filter by priority if provided, otherwise default to high severity
-    priority_filter = f'priority="{priority}"' if priority else 'priority=~"Warning|Error|Critical"'
-    
-    query = f'sum by (rule, priority) (rate(syscall_events_total{{container_name="{id}", {priority_filter}}}[5m]))'
-    
-    resp = await prometheus_service.query(query)
-    
-    alerts = []
-    
-    if resp.get("status") == "success":
-        for item in resp.get("data", {}).get("result", []):
-            alerts.append({
-                "rule": item["metric"].get("rule", "unknown"),
-                "priority": item["metric"].get("priority", "unknown"),
-                "rate": float(item["value"][1])
-            })
-            
+    alerts = log_storage.get_alerts(container_id=id, window_seconds=window_seconds, limit=limit, offset=offset)
     return {
         "container_id": id,
-        "alerts_stats": alerts,
-        "note": "This returns statistical alert rates, not individual alert events."
+        "alerts": alerts
     }

@@ -44,6 +44,7 @@ services:
       - DATA_DIR=/app/data
       - PYTHONUNBUFFERED=1
       - LOG_STORAGE_DEBUG=1
+      - ALERTS_INGESTOR_URL=http://alerts-ingestor:9000
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - shared_data:/app/data
@@ -85,6 +86,37 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
       - exporter
+
+  # 8. Logs Ingestor (Falco -> events DB)
+  logs-ingestor:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: python ingestors/logs/main.py
+    environment:
+      - FALCO_CONTAINER=falco
+      - DATA_DIR=/app/data
+      - PYTHONUNBUFFERED=1
+      - LOG_STORAGE_DEBUG=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - shared_data:/app/data
+    depends_on:
+      - falco
+
+  # 9. Alerts Ingestor (Hanabi Warning(T) -> alerts DB)
+  alerts-ingestor:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: uvicorn ingestors.alerts.main:app --host 0.0.0.0 --port 9000
+    environment:
+      - DATA_DIR=/app/data
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - shared_data:/app/data
+    depends_on:
+      - hanabi_worker
 
   # 7. Grafana (Optional Visualization)
   grafana:

@@ -30,8 +30,18 @@ export interface AlertStat {
 
 export interface ContainerAlerts {
   container_id: string;
-  alerts_stats: AlertStat[];
-  note?: string;
+  alerts: AlertDetail[];
+}
+
+export interface AlertDetail {
+  container_id: string;
+  timestamp: string;
+  category: string;
+  reason: string;
+  evt_type: string;
+  proc_name: string;
+  fd_name: string;
+  output: string;
 }
 
 export interface HbtSnapshot {

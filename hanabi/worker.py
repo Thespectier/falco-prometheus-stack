@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from hanabi.utils.queue import DockerLogQueue
 from hanabi.models.hbt import HBTModel
 from hanabi.models.event_parser import EventParser
-from api.app.services.log_storage import log_storage
 
 # Configuration
 HBT_STORAGE_PATH = os.getenv("HBT_STORAGE_PATH", "/app/data/hbt")
@@ -75,12 +74,15 @@ class HanabiWorker:
         
         logger.info(f"Hanabi Worker started. Monitoring {self.container_name}")
         
+        cnt = 0
         try:
             while self.running:
                 # Non-blocking get or short timeout
                 json_obj = self.log_queue.get(timeout=1)
 
                 if json_obj:
+                    cnt += 1
+                    print("log:", cnt)  
                     self.process_event(json_obj)
                 
                 # Check if it's time to save
@@ -94,9 +96,7 @@ class HanabiWorker:
 
     def process_event(self, event: dict):
         try:
-            # 1. Store raw log to SQLite
-            log_storage.add_event(event)
-
+            
             output_fields = self.event_parser.extract_output_fields(event)
             container_id = output_fields.get("container.name") or "unknown"
             

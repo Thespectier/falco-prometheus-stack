@@ -25,8 +25,12 @@ class ApiClient {
     return this.get<ContainerSummary[]>('/containers');
   }
 
-  async getContainerAlerts(id: string, priority?: string): Promise<ContainerAlerts> {
-    const query = priority ? `?priority=${priority}` : '';
+  async getContainerAlerts(id: string, windowSeconds: number = 0, limit: number = 500, offset: number = 0): Promise<ContainerAlerts> {
+    const params: string[] = [];
+    params.push(`window_seconds=${windowSeconds}`);
+    params.push(`limit=${limit}`);
+    params.push(`offset=${offset}`);
+    const query = `?${params.join('&')}`;
     return this.get<ContainerAlerts>(`/containers/${id}/alerts${query}`);
   }
 
