@@ -106,10 +106,10 @@ python main.py
 访问 `http://localhost:9090` 打开 Prometheus Web UI，查询安全事件指标。
 
 示例查询：
-- 事件总数：`sum(rate(syscall_events_total[5m]))`
-- 按优先级：`sum by(priority) (rate(syscall_events_total[5m]))`
-- 最新事件时间：`syscall_last_event_timestamp_seconds`
-- 分类维度（rule_category）：`sum by(rule_category) (rate(syscall_events_total[5m]))`
+- 日志总数：`sum(rate(syscall_s_total[5m]))`
+- 按优先级：`sum by(priority) (rate(syscall_s_total[5m]))`
+- 最新日志时间：`syscall_last__timestamp_seconds`
+- 分类维度（rule_category）：`sum by(rule_category) (rate(syscall_s_total[5m]))`
 
 ### Docker 一键系统操作指引
 
@@ -161,9 +161,9 @@ docker compose down -v
 
 #### 快速自检流程
 - Falco：`docker compose logs -f falco` 应持续输出 JSON 行事件
-- Exporter：`curl http://<服务器IP>:9876/metrics | head` 能看到 `syscall_events_total` 等指标
+- Exporter：`curl http://<服务器IP>:9876/metrics | head` 能看到 `syscall_s_total` 等指标
 - Prometheus：在 Web UI 查询
-  - `sum(rate(syscall_events_total[5m]))` 与 `syscall_last_event_timestamp_seconds` 有结果
+  - `sum(rate(syscall_s_total[5m]))` 与 `syscall_last__timestamp_seconds` 有结果
 - API：
   - `curl http://<服务器IP>:18000/api/containers` 返回容器列表
   - `curl http://<服务器IP>:18000/api/containers/<id>/logs` 返回该容器的历史明细
@@ -233,11 +233,11 @@ queue.stop()
 ### Falco 事件类型统计
 
 ```promql
-sum by(priority) (rate(falco_events_total[5m]))
+sum by(priority) (rate(falco_s_total[5m]))
 ```
 
 ### 检测到的威胁数量
 
 ```promql
-increase(falco_events_total{priority="Critical"}[1h])
+increase(falco_s_total{priority="Critical"}[1h])
 ```

@@ -2,7 +2,7 @@ import time
 from collections import deque
 
 class EventCounter:
-    def __init__(self, warmup_seconds=45):
+    def __init__(self, warmup_seconds=75):
         self.count = 0
         self.timestamps = deque()
         self.warmup_seconds = warmup_seconds  # 预热时间（秒）

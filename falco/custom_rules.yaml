@@ -34,6 +34,7 @@
     proc.pname=%proc.pname
     proc.name=%proc.name
     proc.cmdline=%proc.cmdline
+    proc.args=%proc.args
     proc.exepath=%proc.exepath
     fd.typechar=%fd.typechar
     fd.num=%fd.num
@@ -58,6 +59,7 @@
     proc.pname=%proc.pname
     proc.name=%proc.name
     proc.cmdline=%proc.cmdline
+    proc.args=%proc.args
     proc.exepath=%proc.exepath
     fd.num=%fd.num
     fd.type=%fd.type

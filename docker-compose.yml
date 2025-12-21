@@ -87,7 +87,7 @@ services:
     depends_on:
       - exporter
 
-  # 8. Logs Ingestor (Falco -> events DB)
+  # 8. Logs Ingestor (Falco -> logs DB)
   logs-ingestor:
     build:
       context: .
