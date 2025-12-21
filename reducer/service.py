@@ -77,7 +77,8 @@ def _alerts_to_dataframe(alerts: List[Dict[str, Any]]) -> pd.DataFrame:
         df = df.fillna("")
         df["异常频次"] = pd.to_numeric(df["异常频次"], errors="coerce").fillna(0)
         df["异常事件序号"] = pd.to_numeric(df["异常事件序号"], errors="coerce").fillna(0)
-        df["告警内容"] = df.apply(lambda x: f"{x['异常属性名']} {x['异常属性值']} {x['事件类型']} {x['事件详情']}", axis=1)
+        # Sync with hanabi logic: include process name and boost weight
+        df["告警内容"] = df.apply(lambda x: f"{x['异常属性名']} {x['异常属性值']} {x['进程名']} {x['进程名']} {x['事件类型']} {x['事件类型']} {x['事件详情']}", axis=1)
         df["威胁特征"] = df.apply(lambda x: f"进程:{x['进程名']} 事件:{x['事件类型']} 详情:{x['事件详情']} 频次:{x['异常频次']}", axis=1)
     return df
 

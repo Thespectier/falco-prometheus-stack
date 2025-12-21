@@ -9,6 +9,7 @@ import Overview from './pages/Overview';
 import HbtVisualizer from './pages/HbtVisualizer';
 import Alerts from './pages/Alerts';
 import Logs from './pages/Logs';
+import Incidents from './pages/Incidents';
 
 const App: React.FC = () => {
   return (
@@ -20,6 +21,7 @@ const App: React.FC = () => {
             <Route path="hbt" element={<HbtVisualizer />} />
             <Route path="logs" element={<Logs />} />
             <Route path="alerts" element={<Alerts />} />
+            <Route path="incidents" element={<Incidents />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

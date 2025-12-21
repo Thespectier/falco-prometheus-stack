@@ -1,7 +1,7 @@
 import React from 'react';
 import { Layout, Menu, theme } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { DashboardOutlined, FileTextOutlined, AlertOutlined, ApartmentOutlined } from '@ant-design/icons';
+import { DashboardOutlined, FileTextOutlined, AlertOutlined, ApartmentOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 
 const { Header, Content, Sider } = Layout;
 
@@ -32,6 +32,11 @@ const AppLayout: React.FC = () => {
       key: '/alerts',
       icon: <AlertOutlined />,
       label: 'Alerts',
+    },
+    {
+      key: '/incidents',
+      icon: <SafetyCertificateOutlined />,
+      label: 'Incidents',
     },
   ];
 

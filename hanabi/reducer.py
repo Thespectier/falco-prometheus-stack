@@ -69,7 +69,11 @@ class AlertReducer:
         df['异常事件序号'] = pd.to_numeric(df['异常事件序号'], errors='coerce').fillna(0)
 
         tqdm.pandas(desc="生成告警特征")
-        df['告警内容'] = df.progress_apply(lambda x: f"{x['异常属性名']} {x['异常属性值']} {x['事件类型']} {x['事件详情']}", axis=1)
+        # 优化：加入进程名，并对关键字段(进程名、事件类型)进行加权(重复两次)，以提高区分度
+        df['告警内容'] = df.progress_apply(
+            lambda x: f"{x['异常属性名']} {x['异常属性值']} {x['进程名']} {x['进程名']} {x['事件类型']} {x['事件类型']} {x['事件详情']}", 
+            axis=1
+        )
 
         tqdm.pandas(desc="生成威胁特征")
         df['威胁特征'] = df.progress_apply(lambda x: f"进程:{x['进程名']} 事件:{x['事件类型']} 详情:{x['事件详情']} 频次:{x['异常频次']}", axis=1)

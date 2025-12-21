@@ -63,3 +63,19 @@ export interface ContainerLogsResponse {
     logs: LogEvent[];
     warning?: string;
 }
+
+export interface Incident {
+  container_id: string;
+  timestamp: string;
+  threat_score: number;
+  cluster_id?: number;
+  attribute_name?: string;
+  attribute_value?: string;
+  event_type?: string;
+  process_name?: string;
+  alert_content?: string;
+  details?: string;
+  analysis_window?: number;
+  similarity_threshold?: number;
+  created_at?: string;
+}

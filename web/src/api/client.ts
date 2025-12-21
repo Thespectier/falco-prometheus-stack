@@ -3,7 +3,8 @@ import {
   ContainerSummary, 
   ContainerAlerts, 
   HbtSnapshot,
-  ContainerLogsResponse 
+  ContainerLogsResponse,
+  Incident
 } from './types';
 
 const API_BASE = '/api';
@@ -40,6 +41,16 @@ class ApiClient {
 
   async getContainerLogs(id: string): Promise<ContainerLogsResponse> {
       return this.get<ContainerLogsResponse>(`/containers/${id}/logs`);
+  }
+
+  async getIncidents(container_id?: string, windowSeconds: number = 0, limit: number = 500, offset: number = 0): Promise<Incident[]> {
+    const params: string[] = [];
+    if (container_id) params.push(`container_id=${container_id}`);
+    params.push(`window_seconds=${windowSeconds}`);
+    params.push(`limit=${limit}`);
+    params.push(`offset=${offset}`);
+    const query = `?${params.join('&')}`;
+    return this.get<Incident[]>(`/incidents${query}`);
   }
 }
 
