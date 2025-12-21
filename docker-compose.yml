@@ -118,6 +118,27 @@ services:
     depends_on:
       - hanabi_worker
 
+  # 10. Reducer (periodic alerts reduction -> incidents)
+  reducer:
+    build:
+      context: .
+      dockerfile: Dockerfile.reducer
+    command: python reducer/service.py
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - DATA_DIR=/app/data
+      - REDUCER_INTERVAL_SECONDS=50
+      - REDUCER_WINDOW_SECONDS=1000
+      - REDUCER_SIMILARITY=0.8
+      - REDUCER_THREAT_THRESHOLD=60.0
+      - REDUCER_MAX_PER_CLUSTER=3
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - shared_data:/app/data
+    depends_on:
+      - prometheus
+      - alerts-ingestor
+
   # 7. Grafana (Optional Visualization)
   grafana:
     image: grafana/grafana-oss:latest

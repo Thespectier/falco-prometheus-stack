@@ -56,6 +56,27 @@ class LogStorage:
                 )
             ''')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_alerts_container_ts ON alerts (container_id, timestamp DESC)')
+
+            # Create incidents table for reduced alerts (post-reducer)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS incidents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    container_id TEXT NOT NULL,
+                    timestamp REAL NOT NULL,
+                    threat_score REAL NOT NULL,
+                    cluster_id INTEGER,
+                    attribute_name TEXT,
+                    attribute_value TEXT,
+                    event_type TEXT,
+                    process_name TEXT,
+                    alert_content TEXT,
+                    details TEXT,
+                    analysis_window INTEGER,
+                    similarity_threshold REAL,
+                    created_at REAL NOT NULL
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_incidents_container_ts ON incidents (container_id, timestamp DESC)')
             
             conn.commit()
             conn.close()
@@ -194,6 +215,106 @@ class LogStorage:
                     pass
         except Exception as e:
             logger.error(f"Failed to add alert to storage: {e}")
+
+    def add_incident(
+        self,
+        *,
+        container_id: str,
+        timestamp: float,
+        threat_score: float,
+        cluster_id: int | None,
+        attribute_name: str | None,
+        attribute_value: str | None,
+        event_type: str | None,
+        process_name: str | None,
+        alert_content: str | None,
+        details: str | None,
+        analysis_window: int | None = 300,
+        similarity_threshold: float | None = 0.8,
+    ) -> None:
+        try:
+            now_ts = datetime.utcnow().timestamp()
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                '''
+                INSERT INTO incidents (
+                    container_id, timestamp, threat_score, cluster_id, attribute_name, attribute_value,
+                    event_type, process_name, alert_content, details, analysis_window, similarity_threshold, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    str(container_id), float(timestamp), float(threat_score), cluster_id,
+                    attribute_name, attribute_value, event_type, process_name,
+                    alert_content, details, analysis_window, similarity_threshold, now_ts
+                )
+            )
+            conn.commit()
+            conn.close()
+            if LOG_STORAGE_DEBUG:
+                try:
+                    logger.info(
+                        f"Incident stored container_id={container_id} score={threat_score} cluster={cluster_id}"
+                    )
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error(f"Failed to add incident to storage: {e}")
+
+    def get_incidents(
+        self,
+        container_id: Optional[str] = None,
+        window_seconds: int = 0,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            base = '''
+                SELECT container_id, timestamp, threat_score, cluster_id, attribute_name, attribute_value,
+                       event_type, process_name, alert_content, details, analysis_window, similarity_threshold, created_at
+                FROM incidents
+            '''
+            params: list[Any] = []
+            where: list[str] = []
+            if container_id:
+                where.append('container_id = ?')
+                params.append(container_id)
+            if window_seconds and window_seconds > 0:
+                now_ts = datetime.utcnow().timestamp()
+                start_ts = now_ts - window_seconds
+                where.append('timestamp >= ?')
+                params.append(start_ts)
+            if where:
+                base += ' WHERE ' + ' AND '.join(where)
+            base += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?'
+            params.extend([limit, offset])
+            cursor.execute(base, params)
+            rows = cursor.fetchall()
+            conn.close()
+            items: List[Dict[str, Any]] = []
+            for r in rows:
+                items.append({
+                    "container_id": r["container_id"],
+                    "timestamp": datetime.fromtimestamp(r["timestamp"]).isoformat(),
+                    "threat_score": r["threat_score"],
+                    "cluster_id": r["cluster_id"],
+                    "attribute_name": r["attribute_name"],
+                    "attribute_value": r["attribute_value"],
+                    "event_type": r["event_type"],
+                    "process_name": r["process_name"],
+                    "alert_content": r["alert_content"],
+                    "details": r["details"],
+                    "analysis_window": r["analysis_window"],
+                    "similarity_threshold": r["similarity_threshold"],
+                    "created_at": datetime.fromtimestamp(r["created_at"]).isoformat(),
+                })
+            return items
+        except Exception as e:
+            logger.error(f"Failed to query incidents: {e}")
+            return []
 
     def get_alert_stats(self, container_id: str, window_seconds: int = 300, priority: Optional[str] = None) -> List[Dict[str, Any]]:
         try:

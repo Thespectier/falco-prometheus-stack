@@ -1,0 +1,33 @@
+FROM python:3.14-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install runtime deps for reducer
+RUN pip install --no-cache-dir \
+    pandas \
+    numpy \
+    scikit-learn \
+    tqdm \
+    httpx \
+    pydantic-settings
+
+COPY . .
+
+ENV PYTHONPATH=/app \
+    DATA_DIR=/app/data \
+    PROMETHEUS_URL=http://prometheus:9090 \
+    REDUCER_INTERVAL_SECONDS=50 \
+    REDUCER_WINDOW_SECONDS=1000 \
+    REDUCER_SIMILARITY=0.8 \
+    REDUCER_THREAT_THRESHOLD=60.0 \
+    REDUCER_MAX_PER_CLUSTER=3
+
+RUN mkdir -p /app/data && chmod -R 777 /app/data
+
+CMD ["python", "reducer/service.py"]
+
