@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Table, Tag, Select, Space, Alert, Empty, Spin, Typography } from 'antd';
+import { Card, Table, Tag, Select, Space, Alert, Empty, Spin, Typography, Drawer, Descriptions } from 'antd';
 import { FileTextOutlined } from '@ant-design/icons';
 import { api } from '../api/client';
 import type { ColumnsType } from 'antd/es/table';
@@ -26,6 +26,8 @@ const Logs: React.FC = () => {
   });
 
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<LogEvent | null>(null);
 
   // Auto-select first container
   useEffect(() => {
@@ -80,7 +82,21 @@ const Logs: React.FC = () => {
       title: 'Output',
       dataIndex: 'output',
       key: 'output',
-      render: (text) => <Text code>{text}</Text>,
+      render: (text) => (
+        <Text code style={{ display: 'block', maxWidth: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {text}
+        </Text>
+      ),
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      render: (_, record) => (
+        <a onClick={() => {
+          setSelectedLog(record);
+          setDrawerVisible(true);
+        }}>Details</a>
+      ),
     },
   ];
 
@@ -154,9 +170,45 @@ const Logs: React.FC = () => {
               pagination={{ pageSize: 20 }}
               scroll={{ x: 1000 }}
               locale={{ emptyText: 'No logs available for this container' }}
+              onRow={(record) => ({
+                onClick: () => {
+                  setSelectedLog(record);
+                  setDrawerVisible(true);
+                },
+                style: { cursor: 'pointer' }
+              })}
             />
           )}
         </Card>
+
+        <Drawer
+          title="Log Details"
+          placement="right"
+          width={600}
+          onClose={() => setDrawerVisible(false)}
+          open={drawerVisible}
+        >
+          {selectedLog && (
+            <Descriptions column={1} bordered>
+              <Descriptions.Item label="Time">
+                {new Date(selectedLog.timestamp).toLocaleString()}
+              </Descriptions.Item>
+              <Descriptions.Item label="Priority">
+                <Tag color={PRIORITY_COLORS[selectedLog.priority] || 'default'}>
+                  {selectedLog.priority ? selectedLog.priority.toUpperCase() : 'UNKNOWN'}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Rule">{selectedLog.rule}</Descriptions.Item>
+              <Descriptions.Item label="Source">{selectedLog.source}</Descriptions.Item>
+              <Descriptions.Item label="Tags">
+                {selectedLog.tags?.map(tag => <Tag key={tag}>{tag}</Tag>)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Output">
+                <Text code>{selectedLog.output}</Text>
+              </Descriptions.Item>
+            </Descriptions>
+          )}
+        </Drawer>
       </Space>
     </div>
   );

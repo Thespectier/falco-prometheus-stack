@@ -48,7 +48,22 @@ const AppLayout: React.FC = () => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider breakpoint="lg" collapsedWidth="0">
-        <div style={{ height: 32, margin: 16, background: 'rgba(255, 255, 255, 0.2)', borderRadius: 6 }} />
+        <div style={{ 
+          height: 64, 
+          margin: 16, 
+          background: 'linear-gradient(135deg, #1890ff 0%, #722ed1 100%)', 
+          borderRadius: 6,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          fontSize: 20,
+          fontWeight: 'bold',
+          letterSpacing: 2,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+        }}>
+          HANABI
+        </div>
         <Menu
           theme="dark"
           mode="inline"

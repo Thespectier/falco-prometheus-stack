@@ -26,6 +26,11 @@ const Settings: React.FC = () => {
     try {
       await api.setLLMConfig(values);
       message.success('Settings saved successfully');
+      // Reset form to reload from backend (which might have masked keys)
+      // or simply clear sensitive fields if desired.
+      // Here we just reload the config to ensure sync.
+      const config = await api.getLLMConfig();
+      form.setFieldsValue(config);
     } catch (error) {
       message.error('Failed to save settings');
     } finally {
@@ -76,9 +81,9 @@ const Settings: React.FC = () => {
               <Form.Item
                 label="API Key"
                 name="api_key"
-                rules={[{ required: true, message: 'Please enter API key' }]}
+                rules={[{ required: false, message: 'Please enter API key' }]}
               >
-                <Input.Password placeholder="sk-..." />
+                <Input.Password placeholder="Leave empty to keep unchanged" />
               </Form.Item>
 
               <Form.Item>

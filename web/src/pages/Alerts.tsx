@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Table, Select, Space, Alert, Empty, Spin, Typography } from 'antd';
+import { Card, Table, Select, Space, Alert, Empty, Spin, Typography, Drawer, Descriptions } from 'antd';
 import { WarningOutlined } from '@ant-design/icons';
 import { api } from '../api/client';
 import type { ColumnsType } from 'antd/es/table';
@@ -18,6 +18,8 @@ const Alerts: React.FC = () => {
 
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   const [windowSeconds, setWindowSeconds] = useState<number>(300);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
 
   // Auto-select first container
   useEffect(() => {
@@ -48,7 +50,26 @@ const Alerts: React.FC = () => {
     { title: 'Event Type', dataIndex: 'evt_type', key: 'evt_type' },
     { title: 'Process', dataIndex: 'proc_name', key: 'proc_name' },
     { title: 'FD Name', dataIndex: 'fd_name', key: 'fd_name' },
-    { title: 'Output', dataIndex: 'output', key: 'output', render: (text) => <Text code>{text}</Text> },
+    { 
+      title: 'Output', 
+      dataIndex: 'output', 
+      key: 'output', 
+      render: (text) => (
+        <Text code style={{ display: 'block', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {text}
+        </Text>
+      ) 
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      render: (_, record) => (
+        <a onClick={() => {
+          setSelectedAlert(record);
+          setDrawerVisible(true);
+        }}>Details</a>
+      ),
+    },
   ];
 
   if (!containers || containers.length === 0) {
@@ -129,9 +150,39 @@ const Alerts: React.FC = () => {
               pagination={{ pageSize: 20 }}
               scroll={{ x: 1200 }}
               locale={{ emptyText: windowSeconds && windowSeconds > 0 ? 'No alerts detected in selected window' : 'No alerts detected' }}
+              onRow={(record) => ({
+                onClick: () => {
+                  setSelectedAlert(record);
+                  setDrawerVisible(true);
+                },
+                style: { cursor: 'pointer' }
+              })}
             />
           )}
         </Card>
+
+        <Drawer
+          title="Alert Details"
+          placement="right"
+          width={600}
+          onClose={() => setDrawerVisible(false)}
+          open={drawerVisible}
+        >
+          {selectedAlert && (
+            <Descriptions column={1} bordered>
+              <Descriptions.Item label="Container">{selectedAlert.container_id}</Descriptions.Item>
+              <Descriptions.Item label="Time">{new Date(selectedAlert.timestamp).toLocaleString()}</Descriptions.Item>
+              <Descriptions.Item label="Category">{selectedAlert.category}</Descriptions.Item>
+              <Descriptions.Item label="Reason">{selectedAlert.reason}</Descriptions.Item>
+              <Descriptions.Item label="Event Type">{selectedAlert.evt_type}</Descriptions.Item>
+              <Descriptions.Item label="Process">{selectedAlert.proc_name}</Descriptions.Item>
+              <Descriptions.Item label="FD Name">{selectedAlert.fd_name}</Descriptions.Item>
+              <Descriptions.Item label="Output">
+                <Text code>{selectedAlert.output}</Text>
+              </Descriptions.Item>
+            </Descriptions>
+          )}
+        </Drawer>
       </Space>
     </div>
   );
