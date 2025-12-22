@@ -62,7 +62,7 @@ def update_learn_state(eventCounter: EventCounter):
             print("Learning completed! Switching to detecting...")
 
 
-def persist_alert(output_fields: dict, category: str, reason: str):
+def persist_alert(output_fields: dict, category: str, reason: str, attribute_value: str = ""):
     url = os.getenv("ALERTS_INGESTOR_URL")
     if not url:
         return
@@ -72,7 +72,8 @@ def persist_alert(output_fields: dict, category: str, reason: str):
                 "category": category,
                 "reason": reason,
                 "output_fields": output_fields,
-                "ts": output_fields.get("evt.time") or output_fields.get("evt.time.iso8601")
+                "ts": output_fields.get("evt.time") or output_fields.get("evt.time.iso8601"),
+                "attribute_value": attribute_value
             })
     except Exception:
         pass
@@ -116,12 +117,12 @@ class ProcessBranchHandler(BranchHandler):
             evt_key = find_semantic_key(evt_type, self.root.children)
             if evt_key not in self.root.children:
                 print("warning(T):    " + json.dumps(event, ensure_ascii=False)+"\n")
-                persist_alert(event, "process", "evt.type not matched")
+                persist_alert(event, "process", "evt.type not matched", evt_type)
                 return
             proc_key = find_semantic_key(proc_name, self.root.children[evt_key].children)
             if proc_key not in self.root.children[evt_key].children:
                 print("Warning(T):    " + json.dumps(event, ensure_ascii=False)+"\n")
-                persist_alert(event, "process", "proc.name not matched")
+                persist_alert(event, "process", "proc.name not matched", proc_name)
                 return
             # cmdline = event.get("proc.cmdline", "")
             # keys = re.findall(r'-{1,2}[^\s-]+', cmdline)
@@ -182,12 +183,12 @@ class NetworkBranchHandler(BranchHandler):
             evt_key = find_semantic_key(evt_type, self.root.children)
             if evt_key not in self.root.children:
                 print("Warning(T): " + json.dumps(event, ensure_ascii=False)+"\n")
-                persist_alert(event, "network", "evt.type not matched")
+                persist_alert(event, "network", "evt.type not matched", evt_type)
                 return
             proc_key = find_semantic_key(proc_name, self.root.children[evt_key].children)
             if proc_key not in self.root.children[evt_key].children:
                 print("Warning(T): " + json.dumps(event, ensure_ascii=False)+"\n")
-                persist_alert(event, "network", "proc.name not matched")
+                persist_alert(event, "network", "proc.name not matched", proc_name)
                 return
             protocol = (event.get("fd.type") or "")
             str = event.get("fd.name", "")
@@ -203,7 +204,7 @@ class NetworkBranchHandler(BranchHandler):
             attr_key = find_semantic_key(value, self.root.children[evt_key].children[proc_key].children)
             if attr_key not in self.root.children[evt_key].children[proc_key].children:
                 print("Warning(T): " + json.dumps(event, ensure_ascii=False)+"\n")
-                persist_alert(event, "network", "network attribute not matched")
+                persist_alert(event, "network", "network attribute not matched", value)
             else:
                 pass
             return
@@ -262,12 +263,12 @@ class FileBranchHandler(BranchHandler):
             evt_key = find_semantic_key(evt_type, self.root.children)
             if evt_key not in self.root.children:
                 print("Warning(T): " + json.dumps(event, ensure_ascii=False)+"\n")
-                persist_alert(event, "file", "evt.type not matched")
+                persist_alert(event, "file", "evt.type not matched", evt_type)
                 return
             proc_key = find_semantic_key(proc_name, self.root.children[evt_key].children)
             if proc_key not in self.root.children[evt_key].children:
                 print("Warning(T): " + json.dumps(event, ensure_ascii=False)+"\n")
-                persist_alert(event, "file", "proc.name not matched")
+                persist_alert(event, "file", "proc.name not matched", proc_name)
                 return
             directory = event.get("fd.directory", "")
             # filename = event.get("fd.name", "")
@@ -275,7 +276,7 @@ class FileBranchHandler(BranchHandler):
                 dir_key = find_semantic_key(directory, self.root.children[evt_key].children[proc_key].children)
                 if dir_key not in self.root.children[evt_key].children[proc_key].children:
                     print("Warning(T): " + json.dumps(event, ensure_ascii=False)+"\n")
-                    persist_alert(event, "file", "directory not matched")
+                    persist_alert(event, "file", "directory not matched", directory)
                     return
             # if filename:
             #     file_key = find_semantic_key(filename, self.root.children[evt_key].children[proc_key].children)

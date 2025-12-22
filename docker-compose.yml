@@ -129,15 +129,32 @@ services:
       - DATA_DIR=/app/data
       - REDUCER_INTERVAL_SECONDS=270
       - REDUCER_WINDOW_SECONDS=300
-      - REDUCER_SIMILARITY=0.7
+      - REDUCER_SIMILARITY=0.6
       - REDUCER_THREAT_THRESHOLD=60.0
-      - REDUCER_MAX_PER_CLUSTER=3
+      - REDUCER_MAX_PER_CLUSTER=1
       - PYTHONUNBUFFERED=1
     volumes:
       - shared_data:/app/data
     depends_on:
       - prometheus
       - alerts-ingestor
+
+  # 11. Analyzer (LLM Analysis for Incidents)
+  analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile.analyzer
+    command: python analyzer/service.py
+    environment:
+      - DATA_DIR=/app/data
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_ENDPOINT=https://api.deepseek.com
+      - DEEPSEEK_MODEL=deepseek-chat
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - shared_data:/app/data
+    depends_on:
+      - logs-ingestor
 
   # 7. Grafana (Optional Visualization)
   grafana:

@@ -52,6 +52,24 @@ class ApiClient {
     const query = `?${params.join('&')}`;
     return this.get<Incident[]>(`/incidents${query}`);
   }
+
+  async getLLMConfig(): Promise<any> {
+    return this.get<any>('/config/llm');
+  }
+
+  async setLLMConfig(config: any): Promise<any> {
+    const response = await fetch(`${API_BASE}/config/llm`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(config),
+    });
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.statusText}`);
+    }
+    return response.json();
+  }
 }
 
 export const api = new ApiClient();

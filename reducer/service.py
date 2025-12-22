@@ -13,9 +13,9 @@ from api.app.services.log_storage import log_storage
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
 POLL_INTERVAL_SECONDS = int(os.getenv("REDUCER_INTERVAL_SECONDS", "270"))
 WINDOW_SECONDS = int(os.getenv("REDUCER_WINDOW_SECONDS", "300"))
-SIMILARITY_THRESHOLD = float(os.getenv("REDUCER_SIMILARITY", "0.7"))
+SIMILARITY_THRESHOLD = float(os.getenv("REDUCER_SIMILARITY", "0.6"))
 THREAT_THRESHOLD = float(os.getenv("REDUCER_THREAT_THRESHOLD", "60.0"))
-MAX_PER_CLUSTER = int(os.getenv("REDUCER_MAX_PER_CLUSTER", "3"))
+MAX_PER_CLUSTER = int(os.getenv("REDUCER_MAX_PER_CLUSTER", "1"))
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("ReducerService")
@@ -55,12 +55,15 @@ def _alerts_to_dataframe(alerts: List[Dict[str, Any]]) -> pd.DataFrame:
         proc_name = str(a.get("proc_name") or "")
         fd_name = str(a.get("fd_name") or "")
         output = a.get("output") or ""
+        attribute_value = str(a.get("attribute_value") or "")
 
         # frequency by (proc_name, evt_type)
         behavior = (proc_name, evt_type)
         freq = behavior_counts.get(behavior, 1)
 
-        attribute_value = proc_name or fd_name or evt_type or ""
+        if not attribute_value:
+             attribute_value = proc_name or fd_name or evt_type or ""
+        
         rows.append({
             "异常事件序号": i,
             "异常属性名": reason,
@@ -78,7 +81,17 @@ def _alerts_to_dataframe(alerts: List[Dict[str, Any]]) -> pd.DataFrame:
         df["异常频次"] = pd.to_numeric(df["异常频次"], errors="coerce").fillna(0)
         df["异常事件序号"] = pd.to_numeric(df["异常事件序号"], errors="coerce").fillna(0)
         # Sync with hanabi logic: include process name and boost weight
-        df["告警内容"] = df.apply(lambda x: f"{x['异常属性名']} {x['异常属性值']} {x['进程名']} {x['进程名']} {x['事件类型']} {x['事件类型']} {x['事件详情']}", axis=1)
+        # Weight adjustment: 
+        # - Attribute Name/Value: x5
+        # - Process/Event Type: x10
+        df["告警内容"] = df.apply(
+            lambda x: f"{x['异常属性名']} " * 5 + 
+                      f"{x['异常属性值']} " * 5 + 
+                      f"{x['进程名']} " * 10 + 
+                      f"{x['事件类型']} " * 10 + 
+                      f"{x['事件详情']}", 
+            axis=1
+        )
         df["威胁特征"] = df.apply(lambda x: f"进程:{x['进程名']} 事件:{x['事件类型']} 详情:{x['事件详情']} 频次:{x['异常频次']}", axis=1)
     return df
 
@@ -128,7 +141,7 @@ def run_once():
     for name in names:
         if name == "unknown":
             continue
-        alerts = log_storage.get_alerts(container_id=name, window_seconds=WINDOW_SECONDS, limit=10000, offset=0)
+        alerts = log_storage.get_alerts(container_id=name, window_seconds=WINDOW_SECONDS, limit=2000, offset=0)
         incidents = _reduce_for_container(name, alerts)
         for inc in incidents:
             log_storage.add_incident(

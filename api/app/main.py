@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.app.routers import containers, alerts, overview, hbt, stream, incidents, incidents_container
+from api.app.routers import containers, alerts, overview, hbt, stream, incidents, incidents_container, config
 
 app = FastAPI(
     title="Falco/Hanabi Monitoring API",
@@ -27,6 +27,7 @@ app.include_router(hbt.router, prefix="/api/hbt", tags=["hbt"])
 app.include_router(stream.router, prefix="/api/stream", tags=["stream"])
 app.include_router(incidents.router, prefix="/api/incidents", tags=["incidents"])
 app.include_router(incidents_container.router, prefix="/api/containers/{id}/incidents", tags=["incidents"])
+app.include_router(config.router, prefix="/api/config", tags=["config"])
 
 @app.get("/healthz")
 async def health_check():
