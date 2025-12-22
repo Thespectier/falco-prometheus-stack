@@ -36,6 +36,7 @@ const Incidents: React.FC = () => {
     { title: 'Value', dataIndex: 'attribute_value', key: 'attribute_value' },
     { title: 'Event Type', dataIndex: 'event_type', key: 'event_type' },
     { title: 'Process', dataIndex: 'process_name', key: 'process_name' },
+    { title: 'AI Analysis', dataIndex: 'analysis', key: 'analysis', render: (text) => text || <Text type="secondary" italic>Pending...</Text> },
     { title: 'Details', dataIndex: 'details', key: 'details', render: (text) => <Text code>{text}</Text> },
   ];
 

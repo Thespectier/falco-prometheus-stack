@@ -73,11 +73,19 @@ class LogStorage:
                     details TEXT,
                     analysis_window INTEGER,
                     similarity_threshold REAL,
-                    created_at REAL NOT NULL
+                    created_at REAL NOT NULL,
+                    analysis TEXT
                 )
             ''')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_incidents_container_ts ON incidents (container_id, timestamp DESC)')
             
+            # Migration: Add analysis column if not exists
+            try:
+                cursor.execute("SELECT analysis FROM incidents LIMIT 1")
+            except sqlite3.OperationalError:
+                cursor.execute("ALTER TABLE incidents ADD COLUMN analysis TEXT")
+                logger.info("Migrated incidents table: added analysis column")
+
             conn.commit()
             conn.close()
         except Exception as e:
@@ -231,6 +239,7 @@ class LogStorage:
         details: str | None,
         analysis_window: int | None = 300,
         similarity_threshold: float | None = 0.8,
+        analysis: str | None = None,
     ) -> None:
         try:
             now_ts = datetime.utcnow().timestamp()
@@ -240,12 +249,12 @@ class LogStorage:
                 '''
                 INSERT INTO incidents (
                     container_id, timestamp, threat_score, cluster_id, attribute_name, attribute_value,
-                    event_type, process_name, alert_content, details, analysis_window, similarity_threshold, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    event_type, process_name, alert_content, details, analysis_window, similarity_threshold, created_at, analysis
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     str(container_id), float(timestamp), float(threat_score), cluster_id,
                     attribute_name, attribute_value, event_type, process_name,
-                    alert_content, details, analysis_window, similarity_threshold, now_ts
+                    alert_content, details, analysis_window, similarity_threshold, now_ts, analysis
                 )
             )
             conn.commit()
@@ -274,7 +283,7 @@ class LogStorage:
 
             base = '''
                 SELECT container_id, timestamp, threat_score, cluster_id, attribute_name, attribute_value,
-                       event_type, process_name, alert_content, details, analysis_window, similarity_threshold, created_at
+                       event_type, process_name, alert_content, details, analysis_window, similarity_threshold, created_at, analysis
                 FROM incidents
             '''
             params: list[Any] = []
@@ -310,6 +319,7 @@ class LogStorage:
                     "analysis_window": r["analysis_window"],
                     "similarity_threshold": r["similarity_threshold"],
                     "created_at": datetime.fromtimestamp(r["created_at"]).isoformat(),
+                    "analysis": r["analysis"],
                 })
             return items
         except Exception as e:

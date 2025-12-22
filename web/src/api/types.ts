@@ -78,4 +78,5 @@ export interface Incident {
   analysis_window?: number;
   similarity_threshold?: number;
   created_at?: string;
+  analysis?: string;
 }

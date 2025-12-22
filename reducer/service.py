@@ -11,9 +11,9 @@ import pandas as pd
 from api.app.services.log_storage import log_storage
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
-POLL_INTERVAL_SECONDS = int(os.getenv("REDUCER_INTERVAL_SECONDS", "50"))
-WINDOW_SECONDS = int(os.getenv("REDUCER_WINDOW_SECONDS", "1000"))
-SIMILARITY_THRESHOLD = float(os.getenv("REDUCER_SIMILARITY", "0.8"))
+POLL_INTERVAL_SECONDS = int(os.getenv("REDUCER_INTERVAL_SECONDS", "270"))
+WINDOW_SECONDS = int(os.getenv("REDUCER_WINDOW_SECONDS", "300"))
+SIMILARITY_THRESHOLD = float(os.getenv("REDUCER_SIMILARITY", "0.7"))
 THREAT_THRESHOLD = float(os.getenv("REDUCER_THREAT_THRESHOLD", "60.0"))
 MAX_PER_CLUSTER = int(os.getenv("REDUCER_MAX_PER_CLUSTER", "3"))
 
@@ -154,7 +154,7 @@ def run_once():
 def main():
     interval = POLL_INTERVAL_SECONDS
     logger.info(f"Reducer service starting. Interval={interval}s, window={WINDOW_SECONDS}s")
-    time.sleep(100)
+    time.sleep(180)
     while True:
         try:
             run_once()
