@@ -110,6 +110,7 @@ def _reduce_for_container(container_id: str, alerts: List[Dict[str, Any]]):
         cluster_reduction=True,
         threat_threshold=THREAT_THRESHOLD,
         max_alerts_per_cluster=MAX_PER_CLUSTER,
+        similarity_threshold=SIMILARITY_THRESHOLD,
     )
 
     incidents: List[Dict[str, Any]] = []

@@ -10,7 +10,8 @@ def ingest_alert(payload: Dict[str, Any] = Body(...)):
     output_fields = payload.get("output_fields", {})
     category = payload.get("category", "unknown")
     reason = payload.get("reason", "")
-    log_storage.add_alert(output_fields, category, reason)
+    attribute_value = payload.get("attribute_value", "")
+    log_storage.add_alert(output_fields, category, reason, attribute_value)
     return {"status": "ok"}
 
 @app.get("/healthz")

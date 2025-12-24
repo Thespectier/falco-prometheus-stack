@@ -227,7 +227,7 @@ class AlertReducer:
         return np.array([30 + np.random.randint(0, 40) for _ in tqdm(range(len(df)), desc="规则评分")])
 
     def reduce_alerts(self, df: pd.DataFrame, cluster_reduction: bool = True,
-                     threat_threshold: float = 60.0, max_alerts_per_cluster: int = 3) -> pd.DataFrame:
+                     threat_threshold: float = 60.0, max_alerts_per_cluster: int = 3, similarity_threshold: float = 0.8) -> pd.DataFrame:
         start_time = time.time()
         print("\n" + "="*60)
         print("开始告警消减流程")
@@ -239,7 +239,7 @@ class AlertReducer:
             # 步骤1: 聚类处理
             main_pbar.set_description("步骤1: 聚类处理")
             if cluster_reduction:
-                cluster_results = self.cluster_alerts(df)
+                cluster_results = self.cluster_alerts(df, similarity_threshold)
                 df_clustered = df.copy()
                 df_clustered['cluster'] = cluster_results['clusters']
             else:
@@ -265,9 +265,24 @@ class AlertReducer:
             main_pbar.set_description("步骤4: 告警选择")
             selection_start = time.time()
             if cluster_reduction:
-                reduced_alerts = [df_filtered[df_filtered['cluster'] == cluster_id].nlargest(max_alerts_per_cluster, 'threat_score')
-                                for cluster_id in tqdm(df_filtered['cluster'].unique(), desc="处理各簇告警", leave=False)]
-                df_reduced = pd.concat(reduced_alerts, ignore_index=True)
+                if df_filtered.empty:
+                    df_reduced = df_filtered.head(0)
+                else:
+                    reduced_alerts = [
+                        df_filtered[df_filtered['cluster'] == cluster_id].nlargest(
+                            max_alerts_per_cluster, 'threat_score'
+                        )
+                        for cluster_id in tqdm(
+                            df_filtered['cluster'].unique(),
+                            desc="处理各簇告警",
+                            leave=False
+                        )
+                    ]
+                    df_reduced = (
+                        pd.concat(reduced_alerts, ignore_index=True)
+                        if reduced_alerts
+                        else df_filtered.head(0)
+                    )
             else:
                 df_reduced = df_filtered.nlargest(len(df_filtered), 'threat_score')
             logger.info(f"告警选择耗时: {time.time() - selection_start:.3f} 秒")

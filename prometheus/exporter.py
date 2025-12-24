@@ -76,28 +76,29 @@ def process_event(event_data):
         rule = event_data.get('rule', 'unknown')
         priority = event_data.get('priority', 'unknown')
         container_name = output_fields.get('container.name', 'unknown')
-        image_repository = output_fields.get('container.image.repository', 'unknown')
-        process_name = output_fields.get('proc.name', 'unknown')
-        evt_type = output_fields.get('evt.type', 'unknown')
-        
-        k8s_namespace = output_fields.get('k8s.ns.name') or 'none'
-        k8s_pod = output_fields.get('k8s.pod.name') or 'none'
+        if container_name != 'unknown':
+            image_repository = output_fields.get('container.image.repository', 'unknown')
+            process_name = output_fields.get('proc.name', 'unknown')
+            evt_type = output_fields.get('evt.type', 'unknown')
+            
+            k8s_namespace = output_fields.get('k8s.ns.name') or 'none'
+            k8s_pod = output_fields.get('k8s.pod.name') or 'none'
 
-        SYSCALL_EVENTS.labels(
-            rule=rule,
-            priority=priority,
-            container_name=container_name,
-            image_repository=image_repository,
-            process_name=process_name,
-            k8s_namespace=k8s_namespace,
-            k8s_pod=k8s_pod,
-            rule_category=_get_rule_category(rule, evt_type)
-        ).inc()
+            SYSCALL_EVENTS.labels(
+                rule=rule,
+                priority=priority,
+                container_name=container_name,
+                image_repository=image_repository,
+                process_name=process_name,
+                k8s_namespace=k8s_namespace,
+                k8s_pod=k8s_pod,
+                rule_category=_get_rule_category(rule, evt_type)
+            ).inc()
 
-        ts_sec = _parse_event_timestamp(output_fields)
-        LAST_EVENT_TIMESTAMP.labels(container_name=container_name).set(ts_sec)
+            ts_sec = _parse_event_timestamp(output_fields)
+            LAST_EVENT_TIMESTAMP.labels(container_name=container_name).set(ts_sec)
 
-        logging.info(f"Processed event from container: {container_name}, rule: {rule}")
+            logging.info(f"Processed event from container: {container_name}, rule: {rule}")
 
     except Exception as e:
         logging.error(f"Error processing event: {e}\nData: {event_data}")
