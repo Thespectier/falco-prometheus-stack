@@ -10,7 +10,7 @@ logger = logging.getLogger("LogsIngestor")
 FALCO_CONTAINER = os.getenv("FALCO_CONTAINER", "falco")
 
 def run():
-    q = DockerLogQueue(container_name=FALCO_CONTAINER, max_queue_size=10000)
+    q = DockerLogQueue(container_name=FALCO_CONTAINER, max_queue_size=100000)
     q.start()
     try:
         while True:

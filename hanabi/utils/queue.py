@@ -12,7 +12,7 @@ class DockerLogQueue:
     Uses a background thread to continuously read logs and put them into a queue.
     """
     
-    def __init__(self, container_name="falco", max_queue_size=10000):
+    def __init__(self, container_name="falco", max_queue_size=100000):
         """
         Initialize the Docker log queue.
         

@@ -8,8 +8,6 @@ services:
     privileged: true
     # Enable JSON output for programmatic consumption
     command: ["falco", "-o", "json_output=true", "-o", "json_include_output_fields_property=true", "-o", "webserver.enabled=false"]
-    ports:
-      - "8765:8765" # Only if webserver enabled, but we use logs
     volumes:
       - ./falco/falco.yaml:/etc/falco/falco.yaml:ro
       - ./falco/custom_rules.yaml:/etc/falco/falco_rules.local.yaml:ro
@@ -23,6 +21,7 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile.backend
+    container_name: hanabi-exporter
     command: python prometheus/exporter.py
     environment:
       - FALCO_CONTAINER=falco
@@ -37,6 +36,7 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile.backend
+    container_name: hanabi-worker
     command: python hanabi/worker.py
     environment:
       - FALCO_CONTAINER=falco
@@ -56,13 +56,12 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile.backend
+    container_name: hanabi-api
     command: uvicorn api.app.main:app --host 0.0.0.0 --port 8000
     environment:
       - PROMETHEUS_URL=http://prometheus:9090
       - HBT_STORAGE_PATH=/app/data/hbt
       - DATA_DIR=/app/data
-    ports:
-      - "18000:8000"
     volumes:
       - shared_data:/app/data
     depends_on:
@@ -72,6 +71,7 @@ services:
   # 5. Frontend (React + Nginx)
   web:
     build: ./web
+    container_name: hanabi-web  
     ports:
       - "8081:80"
     depends_on:
@@ -80,8 +80,7 @@ services:
   # 6. Prometheus (Metrics DB)
   prometheus:
     image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
+    container_name: hanabi-prometheus
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
@@ -92,6 +91,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    container_name: hanabi-logs-ingestor
     command: python ingestors/logs/main.py
     environment:
       - FALCO_CONTAINER=falco
@@ -109,6 +109,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    container_name: hanabi-alerts-ingestor
     command: uvicorn ingestors.alerts.main:app --host 0.0.0.0 --port 9000
     environment:
       - DATA_DIR=/app/data
@@ -123,6 +124,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.reducer
+    container_name: hanabi-reducer
     command: python reducer/service.py
     environment:
       - PROMETHEUS_URL=http://prometheus:9090
@@ -144,6 +146,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.analyzer
+    container_name: hanabi-analyzer
     command: python analyzer/service.py
     environment:
       - DATA_DIR=/app/data

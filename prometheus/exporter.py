@@ -109,7 +109,7 @@ def consume_events(container_name="falco"):
     log_queue = None
     try:
         logging.info(f"Starting to consume events from container: {container_name}")
-        log_queue = DockerLogQueue(container_name=container_name, max_queue_size=10000)
+        log_queue = DockerLogQueue(container_name=container_name, max_queue_size=100000)
         log_queue.start()
         
         while True:
