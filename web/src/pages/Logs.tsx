@@ -58,7 +58,7 @@ const Logs: React.FC = () => {
       dataIndex: 'timestamp',
       key: 'timestamp',
       width: 200,
-      render: (ts) => new Date(ts).toLocaleString(),
+      render: (ts) => new Date(ts).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
     },
     {
       title: 'Priority',
@@ -191,7 +191,7 @@ const Logs: React.FC = () => {
           {selectedLog && (
             <Descriptions column={1} bordered>
               <Descriptions.Item label="Time">
-                {new Date(selectedLog.timestamp).toLocaleString()}
+                {new Date(selectedLog.timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
               </Descriptions.Item>
               <Descriptions.Item label="Priority">
                 <Tag color={PRIORITY_COLORS[selectedLog.priority] || 'default'}>

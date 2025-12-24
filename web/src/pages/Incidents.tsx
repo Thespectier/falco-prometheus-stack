@@ -31,7 +31,7 @@ const Incidents: React.FC = () => {
   });
 
   const columns: ColumnsType<Incident> = [
-    { title: 'Time', dataIndex: 'timestamp', key: 'timestamp', render: (ts) => new Date(ts).toLocaleString() },
+    { title: 'Time', dataIndex: 'timestamp', key: 'timestamp', render: (ts) => new Date(ts).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) },
     { title: 'Container', dataIndex: 'container_id', key: 'container_id' },
     { title: 'Threat Score', dataIndex: 'threat_score', key: 'threat_score', render: (score) => score.toFixed(2) },
     { title: 'Attribute', dataIndex: 'attribute_name', key: 'attribute_name' },
@@ -147,7 +147,7 @@ const Incidents: React.FC = () => {
           {selectedIncident && (
             <Descriptions column={1} bordered>
               <Descriptions.Item label="Container">{selectedIncident.container_id}</Descriptions.Item>
-              <Descriptions.Item label="Time">{new Date(selectedIncident.timestamp).toLocaleString()}</Descriptions.Item>
+              <Descriptions.Item label="Time">{new Date(selectedIncident.timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</Descriptions.Item>
               <Descriptions.Item label="Threat Score">
                 <Tag color={selectedIncident.threat_score > 80 ? 'red' : (selectedIncident.threat_score > 50 ? 'orange' : 'green')}>
                   {selectedIncident.threat_score.toFixed(2)}

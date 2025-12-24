@@ -171,7 +171,7 @@ const Alerts: React.FC = () => {
           {selectedAlert && (
             <Descriptions column={1} bordered>
               <Descriptions.Item label="Container">{selectedAlert.container_id}</Descriptions.Item>
-              <Descriptions.Item label="Time">{new Date(selectedAlert.timestamp).toLocaleString()}</Descriptions.Item>
+              <Descriptions.Item label="Time">{new Date(selectedAlert.timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</Descriptions.Item>
               <Descriptions.Item label="Category">{selectedAlert.category}</Descriptions.Item>
               <Descriptions.Item label="Reason">{selectedAlert.reason}</Descriptions.Item>
               <Descriptions.Item label="Event Type">{selectedAlert.evt_type}</Descriptions.Item>

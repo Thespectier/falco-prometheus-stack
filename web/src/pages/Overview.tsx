@@ -109,7 +109,7 @@ const Overview: React.FC = () => {
       title: 'Last Seen', 
       dataIndex: 'last_seen', 
       key: 'last_seen',
-      render: (ts) => new Date(ts * 1000).toLocaleString() 
+      render: (ts) => new Date(ts * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) 
     },
   ];
 
