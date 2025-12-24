@@ -4,40 +4,17 @@ import json
 import re
 import time
 from ..utils.timeCount import EventCounter
-from .embedding import has_semantic_match
 import os
 import json as _json
 import httpx
 
 learnState = True
 
-def is_semantic_match(query: str, candidates_dict: dict) -> bool:
-    """
-    判断query是否与candidates_dict中的任一值语义匹配
-    """
-    if candidates_dict is None:
-        return False
-    candidates = list(candidates_dict.keys())
-    return has_semantic_match(query, candidates)
-
 def find_semantic_key(query: str, candidates_dict: dict) -> str:
     """
     在candidates_dict中查找与query语义匹配的key，如果没有匹配则返回query本身
     """
     return query
-    # if candidates_dict is None or len(candidates_dict) == 0:
-    #     return query
-    
-    # # 先尝试精确匹配
-    # if query in candidates_dict:
-    #     return query
-    
-    # # 再尝试语义匹配
-    # for key in candidates_dict.keys():
-    #     if has_semantic_match(query, [key]):
-    #         return key
-    
-    # return query
 
 def update_learn_state(eventCounter: EventCounter):
     """

@@ -2,17 +2,12 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    gcc \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install runtime deps
 COPY analyzer/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Copy project files
-COPY . .
+COPY analyzer/ analyzer/
+COPY api/ api/
 
 ENV PYTHONPATH=/app \
     DATA_DIR=/app/data

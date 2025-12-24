@@ -157,16 +157,16 @@ services:
       - logs-ingestor
 
   # 7. Grafana (Optional Visualization)
-  grafana:
-    image: grafana/grafana-oss:latest
-    ports:
-      - "3000:3000"
-    depends_on:
-      - prometheus
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - ./grafana:/var/lib/grafana/dashboards
+  # grafana:
+  #   image: grafana/grafana-oss:latest
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - prometheus
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #   volumes:
+  #     - ./grafana:/var/lib/grafana/dashboards
 
 volumes:
   shared_data:

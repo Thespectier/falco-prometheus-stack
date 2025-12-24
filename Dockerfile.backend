@@ -4,9 +4,8 @@ FROM python:3.14-slim
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy python dependencies
@@ -19,17 +18,19 @@ RUN pip install --no-cache-dir \
     docker \
     prometheus-client \
     fastapi \
-    uvicorn[standard] \
+    uvicorn \
     httpx \
     pydantic-settings \
     gunicorn \
     python-multipart \
-    torch \
-    transformers \
     rich
 
 # Copy application code
-COPY . .
+COPY api/ api/
+COPY hanabi/ hanabi/
+COPY prometheus/ prometheus/
+COPY ingestors/ ingestors/
+COPY pyproject.toml .
 
 # Environment variables
 ENV PYTHONPATH=/app

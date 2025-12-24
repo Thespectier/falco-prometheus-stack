@@ -1,4 +1,2 @@
 openai
-pydantic-settings
-pandas
 httpx

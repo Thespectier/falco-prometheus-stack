@@ -2,9 +2,8 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install runtime deps for reducer
@@ -13,10 +12,11 @@ RUN pip install --no-cache-dir \
     numpy \
     scikit-learn \
     tqdm \
-    httpx \
-    pydantic-settings
+    httpx
 
-COPY . .
+COPY reducer/ reducer/
+COPY hanabi/ hanabi/
+COPY api/ api/
 
 ENV PYTHONPATH=/app \
     DATA_DIR=/app/data \
@@ -30,4 +30,3 @@ ENV PYTHONPATH=/app \
 RUN mkdir -p /app/data && chmod -R 777 /app/data
 
 CMD ["python", "reducer/service.py"]
-
