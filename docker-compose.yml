@@ -3,14 +3,14 @@ version: '3.8'
 services:
   # 1. Falco Security Engine
   falco:
-    image: falcosecurity/falco:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.falco
     container_name: falco
     privileged: true
     # Enable JSON output for programmatic consumption
     command: ["falco", "-o", "json_output=true", "-o", "json_include_output_fields_property=true", "-o", "webserver.enabled=false"]
     volumes:
-      - ./falco/falco.yaml:/etc/falco/falco.yaml:ro
-      - ./falco/custom_rules.yaml:/etc/falco/falco_rules.local.yaml:ro
       - /sys/kernel/tracing:/sys/kernel/tracing:ro 
       - /var/run/docker.sock:/host/var/run/docker.sock
       - /etc:/host/etc:ro
@@ -79,10 +79,10 @@ services:
 
   # 6. Prometheus (Metrics DB)
   prometheus:
-    image: prom/prometheus:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.prometheus
     container_name: hanabi-prometheus
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
       - exporter
 

@@ -13,7 +13,7 @@
 
 - rule: process
   desc: process
-  condition: evt.category=process and proc.name != "<NA>" and container.name = "test-container" and container.name != "host" and container.id != "host" and not container.name in (hanabi_compose_containers)
+  condition: evt.category=process and proc.name != "<NA>" and container.name != "host" and container.id != "host" and not container.name in (hanabi_compose_containers)
   output: >
     evt.num=%evt.num
     evt.type=%evt.type
@@ -37,7 +37,7 @@
 
 - rule: net
   desc: net
-  condition: evt.category=net and proc.name != "<NA>" and container.name = "test-container" and container.name != "host" and container.id != "host" and not container.name in (hanabi_compose_containers)
+  condition: evt.category=net and proc.name != "<NA>" and container.name != "host" and container.id != "host" and not container.name in (hanabi_compose_containers)
   output: >
     evt.num=%evt.num
     evt.type=%evt.type
@@ -60,7 +60,7 @@
 
 - rule: file
   desc: file
-  condition: evt.category=file and proc.name != "<NA>" and container.name = "test-container" and container.name != "host" and container.id != "host" and not container.name in (hanabi_compose_containers)
+  condition: evt.category=file and proc.name != "<NA>" and container.name != "host" and container.id != "host" and not container.name in (hanabi_compose_containers)
   output: >
     evt.num=%evt.num
     evt.type=%evt.type

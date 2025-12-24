@@ -205,7 +205,7 @@ class LogStorage:
             logs = []
             for row in rows:
                 logs.append({
-                    "timestamp": datetime.fromtimestamp(row['timestamp']).isoformat(),
+                    "timestamp": datetime.fromtimestamp(row['timestamp'] + 8 * 3600).isoformat(),
                     "rule": row['rule'],
                     "priority": row['priority'],
                     "source": row['source'],
@@ -358,12 +358,12 @@ class LogStorage:
             cursor.execute(base, params)
             rows = cursor.fetchall()
             conn.close()
-            items: List[Dict[str, Any]] = []
+            items = []
             for r in rows:
                 items.append({
                     "id": r["id"],
                     "container_id": r["container_id"],
-                    "timestamp": datetime.fromtimestamp(r["timestamp"]).isoformat(),
+                    "timestamp": datetime.fromtimestamp(r["timestamp"] + 8 * 3600).isoformat(),
                     "threat_score": r["threat_score"],
                     "cluster_id": r["cluster_id"],
                     "attribute_name": r["attribute_name"],
@@ -374,7 +374,7 @@ class LogStorage:
                     "details": r["details"],
                     "analysis_window": r["analysis_window"],
                     "similarity_threshold": r["similarity_threshold"],
-                    "created_at": datetime.fromtimestamp(r["created_at"]).isoformat(),
+                    "created_at": datetime.fromtimestamp(r["created_at"] + 8 * 3600).isoformat(),
                     "analysis": r["analysis"],
                 })
             return items
@@ -503,7 +503,7 @@ class LogStorage:
             for r in rows:
                 items.append({
                     "container_id": r["container_id"],
-                    "timestamp": datetime.fromtimestamp(r["timestamp"]).isoformat(),
+                    "timestamp": datetime.fromtimestamp(r["timestamp"] + 8 * 3600).isoformat(),
                     "category": r["category"],
                     "reason": r["reason"],
                     "evt_type": r["evt_type"],
