@@ -39,20 +39,42 @@ const Overview: React.FC = () => {
   }
 
   // Prepare Chart Options
-  const priorityChartOption: echarts.EChartsOption = {
-    title: { text: 'Events by Priority', left: 'center' },
-    tooltip: { trigger: 'item' },
-    legend: { bottom: '0%' },
+  const funnelChartOption: echarts.EChartsOption = {
+    title: { text: 'Security Data Funnel', left: 'center' },
+    tooltip: { 
+        trigger: 'item',
+        formatter: (params: any) => `${params.name}: <b>${params.data.realValue}</b>`
+    },
     series: [
       {
-        name: 'Priority',
-        type: 'pie',
-        radius: ['40%', '70%'],
-        avoidLabelOverlap: false,
-        itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
-        label: { show: false, position: 'center' },
-        emphasis: { label: { show: true, fontSize: 20, fontWeight: 'bold' } },
-        data: overviewData?.priority_distribution.map(d => ({ value: d.value, name: d.priority })) || []
+        name: 'Funnel',
+        type: 'funnel',
+        left: '10%',
+        top: 60,
+        bottom: 60,
+        width: '80%',
+        min: 0,
+        max: 100,
+        minSize: '0%',
+        maxSize: '100%',
+        sort: 'none',
+        gap: 2,
+        label: {
+          show: true,
+          position: 'inside',
+          formatter: (params: any) => `${params.name}\n${params.data.realValue}`,
+          color: '#fff',
+          fontWeight: 'bold'
+        },
+        itemStyle: {
+          borderColor: '#fff',
+          borderWidth: 1
+        },
+        data: [
+          { value: 100, name: 'Total Logs', realValue: overviewData?.funnel_stats?.logs || 0, itemStyle: { color: '#5470c6' } },
+          { value: 60, name: 'Alerts', realValue: overviewData?.funnel_stats?.alerts || 0, itemStyle: { color: '#fac858' } },
+          { value: 20, name: 'Incidents', realValue: overviewData?.funnel_stats?.incidents || 0, itemStyle: { color: '#ee6666' } }
+        ] as any[]
       }
     ]
   };
@@ -131,8 +153,8 @@ const Overview: React.FC = () => {
       {/* Charts Row */}
       <Row gutter={16} style={{ marginBottom: '24px' }}>
         <Col span={12}>
-          <Card title="Distribution by Priority" bordered={false}>
-            <Chart options={priorityChartOption} height="300px" />
+          <Card title="Data Processing Pipeline" bordered={false}>
+            <Chart options={funnelChartOption} height="300px" />
           </Card>
         </Col>
         <Col span={12}>

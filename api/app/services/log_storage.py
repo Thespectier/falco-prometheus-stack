@@ -382,6 +382,42 @@ class LogStorage:
             logger.error(f"Failed to query incidents: {e}")
             return []
 
+    def get_funnel_stats(self, window_seconds: int = 0) -> Dict[str, int]:
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            stats = {"logs": 0, "alerts": 0, "incidents": 0}
+            tables = {"logs": "events", "alerts": "alerts", "incidents": "incidents"}
+            
+            if window_seconds > 0:
+                now_ts = datetime.utcnow().timestamp()
+                start_ts = now_ts - window_seconds
+                for key, table in tables.items():
+                    try:
+                        cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE timestamp >= ?", (start_ts,))
+                        row = cursor.fetchone()
+                        if row:
+                            stats[key] = row[0]
+                    except sqlite3.OperationalError:
+                        # Table might not exist
+                        stats[key] = 0
+            else:
+                for key, table in tables.items():
+                    try:
+                        cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                        row = cursor.fetchone()
+                        if row:
+                            stats[key] = row[0]
+                    except sqlite3.OperationalError:
+                        stats[key] = 0
+                    
+            conn.close()
+            return stats
+        except Exception as e:
+            logger.error(f"Failed to get funnel stats: {e}")
+            return {"logs": 0, "alerts": 0, "incidents": 0}
+
     def get_alert_stats(self, container_id: str, window_seconds: int = 300, priority: Optional[str] = None) -> List[Dict[str, Any]]:
         try:
             now_ts = datetime.utcnow().timestamp()

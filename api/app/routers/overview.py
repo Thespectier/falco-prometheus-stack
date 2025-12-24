@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from api.app.services.prometheus import prometheus_service
+from api.app.services.log_storage import log_storage
 import time
 
 router = APIRouter()
@@ -12,6 +13,7 @@ async def get_overview():
     - Distribution by priority
     - Distribution by category
     - Active containers count
+    - Funnel stats (logs -> alerts -> incidents)
     """
     now = time.time()
     
@@ -34,12 +36,16 @@ async def get_overview():
             # Log error but continue with partial results or empty
             results[key] = []
 
+    # Get funnel stats (All time for now)
+    funnel_stats = log_storage.get_funnel_stats(window_seconds=0)
+
     # Format response
     formatted_response = {
         "total_events_rate": 0.0,
         "priority_distribution": [],
         "category_distribution": [],
-        "active_containers_count": 0
+        "active_containers_count": 0,
+        "funnel_stats": funnel_stats
     }
 
     # Process total_rate

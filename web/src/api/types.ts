@@ -8,11 +8,18 @@ export interface CategoryDistribution {
   value: number;
 }
 
+export interface FunnelStats {
+  logs: number;
+  alerts: number;
+  incidents: number;
+}
+
 export interface OverviewMetrics {
   total_events_rate: number;
   priority_distribution: PriorityDistribution[];
   category_distribution: CategoryDistribution[];
   active_containers_count: number;
+  funnel_stats: FunnelStats;
 }
 
 export interface ContainerSummary {
