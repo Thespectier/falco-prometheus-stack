@@ -12,6 +12,10 @@ wheels/
 .trae/
 logs.db
 
+docs/
+
+*.tar
+*.tar.gz
 data/
 node_modules/
 .env

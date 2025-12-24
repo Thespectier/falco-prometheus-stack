@@ -1,0 +1,132 @@
+services:
+  falco:
+    image: hanabi_falco:latest
+    container_name: falco
+    privileged: true
+    command: ["falco", "-o", "json_output=true", "-o", "json_include_output_fields_property=true", "-o", "webserver.enabled=false"]
+    volumes:
+      - /sys/kernel/tracing:/sys/kernel/tracing:ro
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - /etc:/host/etc:ro
+      - /proc:/host/proc:ro
+
+  exporter:
+    image: hanabi_exporter:latest
+    container_name: hanabi-exporter
+    command: python prometheus/exporter.py
+    environment:
+      - FALCO_CONTAINER=falco
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - falco
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  hanabi_worker:
+    image: hanabi_hanabi_worker:latest
+    container_name: hanabi-worker
+    command: python hanabi/worker.py
+    environment:
+      - FALCO_CONTAINER=falco
+      - HBT_STORAGE_PATH=/app/data/hbt
+      - DATA_DIR=/app/data
+      - PYTHONUNBUFFERED=1
+      - LOG_STORAGE_DEBUG=1
+      - ALERTS_INGESTOR_URL=http://alerts-ingestor:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - shared_data:/app/data
+    depends_on:
+      - falco
+
+  api:
+    image: hanabi_api:latest
+    container_name: hanabi-api
+    command: uvicorn api.app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - HBT_STORAGE_PATH=/app/data/hbt
+      - DATA_DIR=/app/data
+    volumes:
+      - shared_data:/app/data
+    depends_on:
+      - prometheus
+      - hanabi_worker
+
+  web:
+    image: hanabi_web:latest
+    container_name: hanabi-web
+    ports:
+      - "8081:80"
+    depends_on:
+      - api
+
+  prometheus:
+    image: hanabi_prometheus:latest
+    container_name: hanabi-prometheus
+    depends_on:
+      - exporter
+
+  logs-ingestor:
+    image: hanabi_logs-ingestor:latest
+    container_name: hanabi-logs-ingestor
+    command: python ingestors/logs/main.py
+    environment:
+      - FALCO_CONTAINER=falco
+      - DATA_DIR=/app/data
+      - PYTHONUNBUFFERED=1
+      - LOG_STORAGE_DEBUG=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - shared_data:/app/data
+    depends_on:
+      - falco
+
+  alerts-ingestor:
+    image: hanabi_alerts-ingestor:latest
+    container_name: hanabi-alerts-ingestor
+    command: uvicorn ingestors.alerts.main:app --host 0.0.0.0 --port 9000
+    environment:
+      - DATA_DIR=/app/data
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - shared_data:/app/data
+    depends_on:
+      - hanabi_worker
+
+  reducer:
+    image: hanabi_reducer:latest
+    container_name: hanabi-reducer
+    command: python reducer/service.py
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - DATA_DIR=/app/data
+      - REDUCER_INTERVAL_SECONDS=270
+      - REDUCER_WINDOW_SECONDS=300
+      - REDUCER_SIMILARITY=0.6
+      - REDUCER_THREAT_THRESHOLD=60.0
+      - REDUCER_MAX_PER_CLUSTER=1
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - shared_data:/app/data
+    depends_on:
+      - prometheus
+      - alerts-ingestor
+
+  analyzer:
+    image: hanabi_analyzer:latest
+    container_name: hanabi-analyzer
+    command: python analyzer/service.py
+    environment:
+      - DATA_DIR=/app/data
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_ENDPOINT=https://api.deepseek.com
+      - DEEPSEEK_MODEL=deepseek-chat
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - shared_data:/app/data
+    depends_on:
+      - logs-ingestor
+
+volumes:
+  shared_data:
