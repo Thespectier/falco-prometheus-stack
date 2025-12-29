@@ -16,6 +16,8 @@ WINDOW_SECONDS = int(os.getenv("REDUCER_WINDOW_SECONDS", "300"))
 SIMILARITY_THRESHOLD = float(os.getenv("REDUCER_SIMILARITY", "0.6"))
 THREAT_THRESHOLD = float(os.getenv("REDUCER_THREAT_THRESHOLD", "60.0"))
 MAX_PER_CLUSTER = int(os.getenv("REDUCER_MAX_PER_CLUSTER", "1"))
+# Default retention: 0.25 days = 6 hours
+RETENTION_DAYS = float(os.getenv("RETENTION_DAYS", "0.25"))
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("ReducerService")
@@ -167,9 +169,22 @@ def run_once():
 def main():
     interval = POLL_INTERVAL_SECONDS
     logger.info(f"Reducer service starting. Interval={interval}s, window={WINDOW_SECONDS}s")
-    time.sleep(180)
+    
+    # Wait a bit for other services to be ready
+    time.sleep(60)
+    
+    last_cleanup_ts = 0
+    
     while True:
         try:
+            # 1. Run Data Cleanup if needed (once every 24h)
+            now = time.time()
+            if now - last_cleanup_ts > 86400:
+                logger.info(f"Running daily data cleanup (retention={RETENTION_DAYS} days)...")
+                log_storage.cleanup_old_data(retention_days=RETENTION_DAYS)
+                last_cleanup_ts = now
+
+            # 2. Run Reducer Cycle
             run_once()
         except Exception as e:
             logger.error(f"Reducer cycle failed: {e}")

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Table, Select, Space, Alert, Empty, Spin, Typography, Drawer, Descriptions } from 'antd';
 import { WarningOutlined } from '@ant-design/icons';
@@ -16,17 +16,10 @@ const Alerts: React.FC = () => {
     queryFn: () => api.listContainers(),
   });
 
-  const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
-  const [windowSeconds, setWindowSeconds] = useState<number>(300);
+  const [selectedContainerId, setSelectedContainerId] = useState<string>('all');
+  const [windowSeconds, setWindowSeconds] = useState<number>(0);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
-
-  // Auto-select first container
-  useEffect(() => {
-    if (containers && containers.length > 0 && !selectedContainerId) {
-      setSelectedContainerId(containers[0].id);
-    }
-  }, [containers, selectedContainerId]);
 
   // 2. Fetch Alerts for selected container
   const { 
@@ -35,10 +28,7 @@ const Alerts: React.FC = () => {
     error 
   } = useQuery({
     queryKey: ['alerts', selectedContainerId, windowSeconds],
-    queryFn: () => selectedContainerId 
-      ? api.getContainerAlerts(selectedContainerId!, windowSeconds) 
-      : Promise.reject('No container selected'),
-    enabled: !!selectedContainerId,
+    queryFn: () => api.getContainerAlerts(selectedContainerId, windowSeconds),
     refetchInterval: 10000
   });
 

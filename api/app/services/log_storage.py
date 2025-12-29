@@ -40,6 +40,10 @@ class LogStorage:
             ''')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_container_ts ON events (container_id, timestamp DESC)')
 
+            # Enable WAL mode for better concurrency
+            cursor.execute('PRAGMA journal_mode=WAL;')
+            cursor.execute('PRAGMA synchronous=NORMAL;')
+
             # Create alerts table for Hanabi detection-phase mismatches
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS alerts (
@@ -185,19 +189,28 @@ class LogStorage:
         except Exception as e:
             logger.error(f"Failed to add event to storage: {e}")
 
-    def get_logs(self, container_id: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+    def get_logs(self, container_id: str, limit: int = 100, offset: int = 0, cursor_ts: Optional[float] = None) -> List[Dict[str, Any]]:
         try:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
-            cursor.execute('''
-                SELECT timestamp, rule, priority, source, output, tags 
-                FROM events 
-                WHERE container_id = ? 
-                ORDER BY timestamp DESC 
-                LIMIT ? OFFSET ?
-            ''', (container_id, limit, offset))
+            if cursor_ts:
+                cursor.execute('''
+                    SELECT timestamp, rule, priority, source, output, tags 
+                    FROM events 
+                    WHERE container_id = ? AND timestamp < ?
+                    ORDER BY timestamp DESC 
+                    LIMIT ?
+                ''', (container_id, cursor_ts, limit))
+            else:
+                cursor.execute('''
+                    SELECT timestamp, rule, priority, source, output, tags 
+                    FROM events 
+                    WHERE container_id = ? 
+                    ORDER BY timestamp DESC 
+                    LIMIT ? OFFSET ?
+                ''', (container_id, limit, offset))
             
             rows = cursor.fetchall()
             conn.close()
@@ -479,24 +492,32 @@ class LogStorage:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
+
+            base_query = '''
+                SELECT container_id, timestamp, category, reason, evt_type, proc_name, fd_name, output, attribute_value
+                FROM alerts
+            '''
+            params = []
+            where_clauses = []
+
+            # Handle 'all' container_id
+            if container_id and container_id.lower() != 'all':
+                where_clauses.append("container_id = ?")
+                params.append(container_id)
+
             if window_seconds and window_seconds > 0:
                 now_ts = datetime.utcnow().timestamp()
                 start_ts = now_ts - window_seconds
-                cursor.execute('''
-                    SELECT container_id, timestamp, category, reason, evt_type, proc_name, fd_name, output, attribute_value
-                    FROM alerts
-                    WHERE container_id = ? AND timestamp >= ?
-                    ORDER BY timestamp DESC
-                    LIMIT ? OFFSET ?
-                ''', (container_id, start_ts, limit, offset))
-            else:
-                cursor.execute('''
-                    SELECT container_id, timestamp, category, reason, evt_type, proc_name, fd_name, output, attribute_value
-                    FROM alerts
-                    WHERE container_id = ?
-                    ORDER BY timestamp DESC
-                    LIMIT ? OFFSET ?
-                ''', (container_id, limit, offset))
+                where_clauses.append("timestamp >= ?")
+                params.append(start_ts)
+
+            if where_clauses:
+                base_query += " WHERE " + " AND ".join(where_clauses)
+
+            base_query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+            cursor.execute(base_query, params)
             rows = cursor.fetchall()
             conn.close()
             items = []
@@ -516,6 +537,39 @@ class LogStorage:
         except Exception as e:
             logger.error(f"Failed to query alerts: {e}")
             return []
+
+    def cleanup_old_data(self, retention_days: float = 0.25):
+        """
+        Delete 'events' (logs) older than retention_days.
+        Default is 0.25 days (6 hours).
+        Alerts and Incidents are preserved.
+        """
+        try:
+            cutoff_ts = datetime.utcnow().timestamp() - (retention_days * 86400)
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Only cleanup events (raw logs), keep alerts and incidents
+            tables = ["events"]
+            deleted_counts = {}
+            
+            for table in tables:
+                try:
+                    cursor.execute(f"DELETE FROM {table} WHERE timestamp < ?", (cutoff_ts,))
+                    deleted_counts[table] = cursor.rowcount
+                except Exception as e:
+                    logger.error(f"Failed to cleanup table {table}: {e}")
+            
+            conn.commit()
+            
+            # Run WAL checkpoint to free up space in WAL file
+            cursor.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+            
+            conn.close()
+            logger.info(f"Cleanup completed. Deleted: {deleted_counts}")
+        except Exception as e:
+            logger.error(f"Failed to run data cleanup: {e}")
+
 # Global instance
 # Ensure the data directory exists
 # Use a path relative to the project root for local development, or /app/data for Docker
