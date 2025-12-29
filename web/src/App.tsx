@@ -12,10 +12,12 @@ import Logs from './pages/Logs';
 import Incidents from './pages/Incidents';
 import Settings from './pages/Settings';
 
+const baseName = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename={baseName}>
         <Routes>
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Overview />} />

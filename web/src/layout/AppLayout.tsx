@@ -57,12 +57,15 @@ const AppLayout: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           color: 'white',
-          fontSize: 20,
+          fontSize: 16,
           fontWeight: 'bold',
-          letterSpacing: 2,
+          letterSpacing: 0.5,
+          textAlign: 'center',
+          padding: '0 12px',
+          lineHeight: 1.2,
           boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
         }}>
-          HANABI
+          基础设施攻击识别与响应工具
         </div>
         <Menu
           theme="dark"

@@ -47,6 +47,7 @@ services:
       - PROMETHEUS_URL=http://prometheus:9090
       - HBT_STORAGE_PATH=/app/data/hbt
       - DATA_DIR=/app/data
+      - ACCESS_CONTROL_ENABLED=${ACCESS_CONTROL_ENABLED:-0}
     volumes:
       - shared_data:/app/data
     depends_on:
@@ -58,6 +59,8 @@ services:
     container_name: hanabi-web
     ports:
       - "8081:80"
+    environment:
+      - ACCESS_CONTROL_ENABLED=${ACCESS_CONTROL_ENABLED:-0}
     depends_on:
       - api
 

@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename)
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: '/infrasecurity/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -17,6 +18,18 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/clientsecurity': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/infrasecurity/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/infrasecurity/clientsecurity': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },

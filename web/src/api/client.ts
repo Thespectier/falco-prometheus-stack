@@ -7,7 +7,8 @@ import {
   Incident
 } from './types';
 
-const API_BASE = '/api';
+const apiPrefix = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+const API_BASE = `${apiPrefix}/api`;
 
 class ApiClient {
   private async get<T>(endpoint: string): Promise<T> {
