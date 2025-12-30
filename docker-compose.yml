@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.falco
-    container_name: falco
+    container_name: 43039infrasecurity-falco
     privileged: true
     # Enable JSON output for programmatic consumption
     command: ["falco", "-o", "json_output=true", "-o", "json_include_output_fields_property=true", "-o", "webserver.enabled=false"]
@@ -21,10 +21,10 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile.backend
-    container_name: hanabi-exporter
+    container_name: 43039infrasecurity-exporter
     command: python prometheus/exporter.py
     environment:
-      - FALCO_CONTAINER=falco
+      - FALCO_CONTAINER=43039infrasecurity-falco
       - PYTHONUNBUFFERED=1
     depends_on:
       - falco
@@ -36,10 +36,10 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile.backend
-    container_name: hanabi-worker
+    container_name: 43039infrasecurity-worker
     command: python hanabi/worker.py
     environment:
-      - FALCO_CONTAINER=falco
+      - FALCO_CONTAINER=43039infrasecurity-falco
       - HBT_STORAGE_PATH=/app/data/hbt
       - DATA_DIR=/app/data
       - PYTHONUNBUFFERED=1
@@ -56,7 +56,7 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile.backend
-    container_name: hanabi-api
+    container_name: 43039infrasecurity-api
     command: uvicorn api.app.main:app --host 0.0.0.0 --port 8000
     environment:
       - PROMETHEUS_URL=http://prometheus:9090
@@ -72,7 +72,7 @@ services:
   # 5. Frontend (React + Nginx)
   web:
     build: ./web
-    container_name: hanabi-web  
+    container_name: 43039infrasecurity-web  
     ports:
       - "8081:80"
     environment:
@@ -85,7 +85,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prometheus
-    container_name: hanabi-prometheus
+    container_name: 43039infrasecurity-prometheus
     depends_on:
       - exporter
 
@@ -94,10 +94,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    container_name: hanabi-logs-ingestor
+    container_name: 43039infrasecurity-logs-ingestor
     command: python ingestors/logs/main.py
     environment:
-      - FALCO_CONTAINER=falco
+      - FALCO_CONTAINER=43039infrasecurity-falco
       - DATA_DIR=/app/data
       - PYTHONUNBUFFERED=1
       - LOG_STORAGE_DEBUG=1
@@ -112,7 +112,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    container_name: hanabi-alerts-ingestor
+    container_name: 43039infrasecurity-alerts-ingestor
     command: uvicorn ingestors.alerts.main:app --host 0.0.0.0 --port 9000
     environment:
       - DATA_DIR=/app/data
@@ -127,7 +127,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.reducer
-    container_name: hanabi-reducer
+    container_name: 43039infrasecurity-reducer
     command: python reducer/service.py
     environment:
       - PROMETHEUS_URL=http://prometheus:9090
@@ -149,7 +149,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.analyzer
-    container_name: hanabi-analyzer
+    container_name: 43039infrasecurity-analyzer
     command: python analyzer/service.py
     environment:
       - DATA_DIR=/app/data

@@ -16,7 +16,7 @@ from hanabi.models.event_parser import EventParser
 
 # Configuration
 HBT_STORAGE_PATH = os.getenv("HBT_STORAGE_PATH", "/app/data/hbt")
-FALCO_CONTAINER = os.getenv("FALCO_CONTAINER", "falco")
+FALCO_CONTAINER = os.getenv("FALCO_CONTAINER", "43039infrasecurity-falco")
 SAVE_INTERVAL_SECONDS = 30
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

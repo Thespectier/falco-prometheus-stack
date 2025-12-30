@@ -9,7 +9,7 @@ from api.app.services.log_storage import log_storage
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("LogsIngestor")
 
-FALCO_CONTAINER = os.getenv("FALCO_CONTAINER", "falco")
+FALCO_CONTAINER = os.getenv("FALCO_CONTAINER", "43039infrasecurity-falco")
 BATCH_SIZE = 5000
 FLUSH_INTERVAL = 1.0  # seconds
 

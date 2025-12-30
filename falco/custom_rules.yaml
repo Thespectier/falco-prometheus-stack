@@ -1,15 +1,15 @@
 - list: hanabi_compose_containers
   items:
-    - "falco"
-    - "hanabi-exporter"
-    - "hanabi-worker"
-    - "hanabi-api"
-    - "hanabi-web"
-    - "hanabi-prometheus"
-    - "hanabi-logs-ingestor"
-    - "hanabi-alerts-ingestor"
-    - "hanabi-reducer"
-    - "hanabi-analyzer"
+    - "43039infrasecurity-falco"
+    - "43039infrasecurity-exporter"
+    - "43039infrasecurity-worker"
+    - "43039infrasecurity-api"
+    - "43039infrasecurity-web"
+    - "43039infrasecurity-prometheus"
+    - "43039infrasecurity-logs-ingestor"
+    - "43039infrasecurity-alerts-ingestor"
+    - "43039infrasecurity-reducer"
+    - "43039infrasecurity-analyzer"
 
 - rule: process
   desc: process
