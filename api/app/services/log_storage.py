@@ -9,23 +9,26 @@ logger = logging.getLogger("LogStorage")
 LOG_STORAGE_DEBUG = os.getenv("LOG_STORAGE_DEBUG", "0") == "1"
 
 class LogStorage:
-    def __init__(self, db_path: str = "data/logs.db"):
-        self.db_path = db_path
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    def __init__(self, logs_db_path: str = "data/logs.db", alerts_db_path: str = "data/alerts.db"):
+        self.logs_db_path = logs_db_path
+        self.alerts_db_path = alerts_db_path
+        os.makedirs(os.path.dirname(logs_db_path), exist_ok=True)
+        os.makedirs(os.path.dirname(alerts_db_path), exist_ok=True)
         self._init_db()
         try:
-            logger.info(f"LogStorage initialized at {self.db_path}")
+            logger.info(f"LogStorage initialized. Logs: {self.logs_db_path}, Alerts: {self.alerts_db_path}")
         except Exception:
             pass
 
     def _init_db(self):
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            # Init Logs DB
+            conn_logs = sqlite3.connect(self.logs_db_path)
+            cursor_logs = conn_logs.cursor()
             
             # Create events table
             # We index container_id and timestamp for faster queries
-            cursor.execute('''
+            cursor_logs.execute('''
                 CREATE TABLE IF NOT EXISTS events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     container_id TEXT NOT NULL,
@@ -38,14 +41,22 @@ class LogStorage:
                     raw_event TEXT
                 )
             ''')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_container_ts ON events (container_id, timestamp DESC)')
+            cursor_logs.execute('CREATE INDEX IF NOT EXISTS idx_container_ts ON events (container_id, timestamp DESC)')
 
-            # Enable WAL mode for better concurrency
-            cursor.execute('PRAGMA journal_mode=WAL;')
-            cursor.execute('PRAGMA synchronous=NORMAL;')
+            # Enable WAL mode for better concurrency and synchronous=NORMAL for better performance
+            cursor_logs.execute('PRAGMA journal_mode=WAL;')
+            cursor_logs.execute('PRAGMA synchronous=NORMAL;')
+            cursor_logs.execute('PRAGMA cache_size = -100000;') # ~100MB cache
+            
+            conn_logs.commit()
+            conn_logs.close()
+
+            # Init Alerts DB
+            conn_alerts = sqlite3.connect(self.alerts_db_path)
+            cursor_alerts = conn_alerts.cursor()
 
             # Create alerts table for Hanabi detection-phase mismatches
-            cursor.execute('''
+            cursor_alerts.execute('''
                 CREATE TABLE IF NOT EXISTS alerts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     container_id TEXT NOT NULL,
@@ -60,17 +71,10 @@ class LogStorage:
                     attribute_value TEXT
                 )
             ''')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_alerts_container_ts ON alerts (container_id, timestamp DESC)')
-
-            # Migration: Add attribute_value column if not exists
-            try:
-                cursor.execute("SELECT attribute_value FROM alerts LIMIT 1")
-            except sqlite3.OperationalError:
-                cursor.execute("ALTER TABLE alerts ADD COLUMN attribute_value TEXT")
-                logger.info("Migrated alerts table: added attribute_value column")
+            cursor_alerts.execute('CREATE INDEX IF NOT EXISTS idx_alerts_container_ts ON alerts (container_id, timestamp DESC)')
 
             # Create incidents table for reduced alerts (post-reducer)
-            cursor.execute('''
+            cursor_alerts.execute('''
                 CREATE TABLE IF NOT EXISTS incidents (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     container_id TEXT NOT NULL,
@@ -89,31 +93,29 @@ class LogStorage:
                     analysis TEXT
                 )
             ''')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_incidents_container_ts ON incidents (container_id, timestamp DESC)')
+            cursor_alerts.execute('CREATE INDEX IF NOT EXISTS idx_incidents_container_ts ON incidents (container_id, timestamp DESC)')
             
             # Create config table for dynamic settings (e.g. LLM config)
-            cursor.execute('''
+            cursor_alerts.execute('''
                 CREATE TABLE IF NOT EXISTS config (
                     key TEXT PRIMARY KEY,
                     value TEXT
                 )
             ''')
 
-            # Migration: Add analysis column if not exists
-            try:
-                cursor.execute("SELECT analysis FROM incidents LIMIT 1")
-            except sqlite3.OperationalError:
-                cursor.execute("ALTER TABLE incidents ADD COLUMN analysis TEXT")
-                logger.info("Migrated incidents table: added analysis column")
+            # Enable WAL mode
+            cursor_alerts.execute('PRAGMA journal_mode=WAL;')
+            cursor_alerts.execute('PRAGMA synchronous=NORMAL;')
 
-            conn.commit()
-            conn.close()
+            conn_alerts.commit()
+            conn_alerts.close()
+            
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
 
     def get_config(self, key: str) -> Optional[str]:
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.alerts_db_path)
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM config WHERE key = ?", (key,))
             row = cursor.fetchone()
@@ -125,7 +127,7 @@ class LogStorage:
 
     def set_config(self, key: str, value: str):
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.alerts_db_path)
             cursor = conn.cursor()
             cursor.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (key, value))
             conn.commit()
@@ -135,63 +137,83 @@ class LogStorage:
         except Exception as e:
             logger.error(f"Failed to set config {key}: {e}")
 
+    def _prepare_event_tuple(self, event: Dict[str, Any]):
+        output_fields = event.get('output_fields', {})
+        container_id = (
+            output_fields.get('container.name')
+            or output_fields.get('container.id')
+            or output_fields.get('k8s.pod.name')
+            or event.get('hostname')
+            or 'unknown'
+        )
+        if not container_id:
+            container_id = 'unknown'
+        container_id = str(container_id)
+        
+        # Parse timestamp
+        ts_val = event.get('time') or output_fields.get('evt.time') or output_fields.get('evt.time.iso8601')
+        if isinstance(ts_val, str):
+             try:
+                 dt = datetime.fromisoformat(ts_val.replace('Z', '+00:00'))
+                 timestamp = dt.timestamp()
+             except:
+                 timestamp = datetime.utcnow().timestamp()
+        elif isinstance(ts_val, (int, float)):
+             timestamp = ts_val if ts_val < 1e11 else ts_val / 1e9 # handle ns
+        else:
+             timestamp = datetime.utcnow().timestamp()
+
+        rule = event.get('rule', 'unknown')
+        priority = event.get('priority', 'unknown')
+        source = event.get('source', 'unknown')
+        output = json.dumps(output_fields, ensure_ascii=False)
+        tags = json.dumps(event.get('tags', []))
+        raw = json.dumps(event)
+        
+        return (container_id, timestamp, rule, priority, source, output, tags, raw)
+
     def add_event(self, event: Dict[str, Any]):
         try:
-            output_fields = event.get('output_fields', {})
-            container_id = (
-                output_fields.get('container.name')
-                or output_fields.get('container.id')
-                or output_fields.get('k8s.pod.name')
-                or event.get('hostname')
-                or 'unknown'
-            )
-            if not container_id:
-                container_id = 'unknown'
-            container_id = str(container_id)
-            
-            # Parse timestamp
-            ts_val = event.get('time') or output_fields.get('evt.time') or output_fields.get('evt.time.iso8601')
-            if isinstance(ts_val, str):
-                 # Try parsing ISO format if needed, but usually it comes as string from Falco
-                 # For simplicity, use current time if parsing fails or rely on 'evt.time' if it's epoch
-                 try:
-                     dt = datetime.fromisoformat(ts_val.replace('Z', '+00:00'))
-                     timestamp = dt.timestamp()
-                 except:
-                     timestamp = datetime.utcnow().timestamp()
-            elif isinstance(ts_val, (int, float)):
-                 timestamp = ts_val if ts_val < 1e11 else ts_val / 1e9 # handle ns
-            else:
-                 timestamp = datetime.utcnow().timestamp()
-
-            rule = event.get('rule', 'unknown')
-            priority = event.get('priority', 'unknown')
-            source = event.get('source', 'unknown')
-            output = json.dumps(output_fields, ensure_ascii=False)
-            tags = json.dumps(event.get('tags', []))
-            raw = json.dumps(event)
-
-            conn = sqlite3.connect(self.db_path)
+            val = self._prepare_event_tuple(event)
+            conn = sqlite3.connect(self.logs_db_path)
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO events (container_id, timestamp, rule, priority, source, output, tags, raw_event)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (container_id, timestamp, rule, priority, source, output, tags, raw))
+            ''', val)
             
             conn.commit()
             conn.close()
             if LOG_STORAGE_DEBUG:
                 try:
-                    logger.info(f"Event stored container_id={container_id} timestamp={timestamp} db={self.db_path}")
+                    logger.info(f"Event stored container_id={val[0]} timestamp={val[1]} db={self.logs_db_path}")
                 except Exception:
                     pass
             
         except Exception as e:
             logger.error(f"Failed to add event to storage: {e}")
 
+    def add_event_batch(self, events: List[Dict[str, Any]]):
+        if not events:
+            return
+        try:
+            vals = [self._prepare_event_tuple(e) for e in events]
+            conn = sqlite3.connect(self.logs_db_path)
+            cursor = conn.cursor()
+            cursor.executemany('''
+                INSERT INTO events (container_id, timestamp, rule, priority, source, output, tags, raw_event)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', vals)
+            conn.commit()
+            conn.close()
+            if LOG_STORAGE_DEBUG:
+                logger.info(f"Batch inserted {len(events)} events to {self.logs_db_path}")
+        except Exception as e:
+            logger.error(f"Failed to add event batch to storage: {e}")
+
     def get_logs(self, container_id: str, limit: int = 100, offset: int = 0, cursor_ts: Optional[float] = None) -> List[Dict[str, Any]]:
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.logs_db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -261,7 +283,7 @@ class LogStorage:
             fd_name = output_fields.get('fd.name', '')
             output = json.dumps(output_fields, ensure_ascii=False)
 
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.alerts_db_path)
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO alerts (container_id, timestamp, category, priority, reason, evt_type, proc_name, fd_name, output, attribute_value)
@@ -296,7 +318,7 @@ class LogStorage:
     ) -> None:
         try:
             now_ts = datetime.utcnow().timestamp()
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.alerts_db_path)
             cursor = conn.cursor()
             cursor.execute(
                 '''
@@ -324,7 +346,7 @@ class LogStorage:
 
     def update_incident_analysis(self, incident_id: int, analysis: str):
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.alerts_db_path)
             cursor = conn.cursor()
             cursor.execute(
                 "UPDATE incidents SET analysis = ? WHERE id = ?",
@@ -345,7 +367,7 @@ class LogStorage:
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.alerts_db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
@@ -397,35 +419,46 @@ class LogStorage:
 
     def get_funnel_stats(self, window_seconds: int = 0) -> Dict[str, int]:
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
             stats = {"logs": 0, "alerts": 0, "incidents": 0}
-            tables = {"logs": "events", "alerts": "alerts", "incidents": "incidents"}
             
-            if window_seconds > 0:
-                now_ts = datetime.utcnow().timestamp()
-                start_ts = now_ts - window_seconds
+            # 1. Query Logs DB for events
+            try:
+                conn_logs = sqlite3.connect(self.logs_db_path)
+                cursor_logs = conn_logs.cursor()
+                if window_seconds > 0:
+                    start_ts = datetime.utcnow().timestamp() - window_seconds
+                    cursor_logs.execute("SELECT COUNT(*) FROM events WHERE timestamp >= ?", (start_ts,))
+                else:
+                    cursor_logs.execute("SELECT COUNT(*) FROM events")
+                row = cursor_logs.fetchone()
+                if row:
+                    stats["logs"] = row[0]
+                conn_logs.close()
+            except Exception as e:
+                logger.error(f"Failed to query logs count: {e}")
+
+            # 2. Query Alerts DB for alerts and incidents
+            try:
+                conn_alerts = sqlite3.connect(self.alerts_db_path)
+                cursor_alerts = conn_alerts.cursor()
+                
+                tables = {"alerts": "alerts", "incidents": "incidents"}
                 for key, table in tables.items():
                     try:
-                        cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE timestamp >= ?", (start_ts,))
-                        row = cursor.fetchone()
+                        if window_seconds > 0:
+                            start_ts = datetime.utcnow().timestamp() - window_seconds
+                            cursor_alerts.execute(f"SELECT COUNT(*) FROM {table} WHERE timestamp >= ?", (start_ts,))
+                        else:
+                            cursor_alerts.execute(f"SELECT COUNT(*) FROM {table}")
+                        row = cursor_alerts.fetchone()
                         if row:
                             stats[key] = row[0]
                     except sqlite3.OperationalError:
-                        # Table might not exist
-                        stats[key] = 0
-            else:
-                for key, table in tables.items():
-                    try:
-                        cursor.execute(f"SELECT COUNT(*) FROM {table}")
-                        row = cursor.fetchone()
-                        if row:
-                            stats[key] = row[0]
-                    except sqlite3.OperationalError:
-                        stats[key] = 0
-                    
-            conn.close()
+                        pass
+                conn_alerts.close()
+            except Exception as e:
+                logger.error(f"Failed to query alerts/incidents count: {e}")
+                
             return stats
         except Exception as e:
             logger.error(f"Failed to get funnel stats: {e}")
@@ -436,7 +469,7 @@ class LogStorage:
             now_ts = datetime.utcnow().timestamp()
             use_time_filter = window_seconds is not None and window_seconds > 0
             start_ts = (now_ts - window_seconds) if use_time_filter else None
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.alerts_db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
@@ -489,7 +522,7 @@ class LogStorage:
 # Detailed alerts query
     def get_alerts(self, container_id: str, window_seconds: int = 0, limit: int = 500, offset: int = 0) -> List[Dict[str, Any]]:
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.alerts_db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
@@ -546,27 +579,20 @@ class LogStorage:
         """
         try:
             cutoff_ts = datetime.utcnow().timestamp() - (retention_days * 86400)
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
             
-            # Only cleanup events (raw logs), keep alerts and incidents
-            tables = ["events"]
-            deleted_counts = {}
+            # Clean Logs DB
+            try:
+                conn_logs = sqlite3.connect(self.logs_db_path)
+                cursor_logs = conn_logs.cursor()
+                cursor_logs.execute(f"DELETE FROM events WHERE timestamp < ?", (cutoff_ts,))
+                deleted_events = cursor_logs.rowcount
+                conn_logs.commit()
+                cursor_logs.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                conn_logs.close()
+                logger.info(f"Cleanup completed. Deleted events: {deleted_events}")
+            except Exception as e:
+                logger.error(f"Failed to cleanup logs db: {e}")
             
-            for table in tables:
-                try:
-                    cursor.execute(f"DELETE FROM {table} WHERE timestamp < ?", (cutoff_ts,))
-                    deleted_counts[table] = cursor.rowcount
-                except Exception as e:
-                    logger.error(f"Failed to cleanup table {table}: {e}")
-            
-            conn.commit()
-            
-            # Run WAL checkpoint to free up space in WAL file
-            cursor.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-            
-            conn.close()
-            logger.info(f"Cleanup completed. Deleted: {deleted_counts}")
         except Exception as e:
             logger.error(f"Failed to run data cleanup: {e}")
 
@@ -576,4 +602,7 @@ class LogStorage:
 DATA_DIR = os.getenv("DATA_DIR", "data")
 os.makedirs(DATA_DIR, exist_ok=True) 
 
-log_storage = LogStorage(db_path=os.path.join(DATA_DIR, "logs.db"))
+log_storage = LogStorage(
+    logs_db_path=os.path.join(DATA_DIR, "logs.db"),
+    alerts_db_path=os.path.join(DATA_DIR, "alerts.db")
+)
