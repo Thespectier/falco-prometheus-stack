@@ -62,12 +62,12 @@ async def verify_token(token: str | None = Query(default=None)):
     verify_url = "https://www.ideas.cnpc/api/common/v1/users/current?appCode=gx06hustinfrasecurity"
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
             resp = await client.get(
                 verify_url,
                 headers={
                     "Content-Type": "application/json",
-                    "Authorization": token,
+                    "Authorization": f"Bearer {token}",
                 },
             )
             remote_json = resp.json()

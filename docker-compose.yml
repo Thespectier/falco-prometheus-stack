@@ -59,7 +59,7 @@ services:
     container_name: 43039infrasecurity-api
     command: uvicorn api.app.main:app --host 0.0.0.0 --port 8000
     environment:
-      - PROMETHEUS_URL=http://prometheus:9090
+      - PROMETHEUS_URL=http://43039infrasecurity-prometheus:9090
       - HBT_STORAGE_PATH=/app/data/hbt
       - DATA_DIR=/app/data
       - ACCESS_CONTROL_ENABLED=${ACCESS_CONTROL_ENABLED:-0}
