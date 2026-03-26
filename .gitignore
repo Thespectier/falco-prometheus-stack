@@ -17,6 +17,7 @@ docs/
 *.tar
 *.tar.gz
 data/
+test/
 node_modules/
 .env
 .DS_Store
