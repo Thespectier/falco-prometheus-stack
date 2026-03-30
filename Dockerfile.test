@@ -1,0 +1,13 @@
+FROM python:3.11-alpine
+
+WORKDIR /app
+
+# Install sqlite3 for CLI fallback support
+RUN apk add --no-cache sqlite
+
+# Copy the test script
+COPY test/ test/
+
+ENV PYTHONPATH=/app
+
+CMD ["python", "test/query_alerts_db.py"]

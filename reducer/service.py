@@ -20,8 +20,14 @@ MAX_PER_CLUSTER = int(os.getenv("REDUCER_MAX_PER_CLUSTER", "1"))
 RETENTION_DAYS = float(os.getenv("RETENTION_DAYS", str(0.5 / 24)))
 CLEANUP_INTERVAL = int(os.getenv("CLEANUP_INTERVAL", "3600")) # 1 hour
 VACUUM_INTERVAL = int(os.getenv("VACUUM_INTERVAL", "86400")) # 24 hours
-ALERTS_RETENTION_DAYS = float(os.getenv("ALERTS_RETENTION_DAYS", str(3.0 / 24))) # 3 hours
-ALERTS_CLEANUP_INTERVAL = int(os.getenv("ALERTS_CLEANUP_INTERVAL", "86400")) # 24 hours
+ALERTS_RETENTION_DAYS = float(os.getenv("ALERTS_RETENTION_DAYS", str(6.0 / 24))) # 6 hours
+# Calculate a reasonable cleanup interval based on retention period.
+# We want to clean up more frequently than the retention period to avoid hoarding data.
+# For example, if retention is 6 hours, cleaning up every 3 hours is reasonable.
+# Let's set the interval to 1/2 of the retention time, but cap it between 5 mins and 24 hours.
+_retention_seconds = ALERTS_RETENTION_DAYS * 86400
+_calculated_interval = max(300, min(86400, int(_retention_seconds / 2)))
+ALERTS_CLEANUP_INTERVAL = int(os.getenv("ALERTS_CLEANUP_INTERVAL", str(_calculated_interval)))
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("ReducerService")
