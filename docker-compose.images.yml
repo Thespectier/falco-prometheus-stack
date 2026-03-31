@@ -54,7 +54,7 @@ services:
       - PROMETHEUS_URL=http://43039infrasecurity-prometheus:9090
       - HBT_STORAGE_PATH=/app/data/hbt
       - DATA_DIR=/app/data
-      - ACCESS_CONTROL_ENABLED=${ACCESS_CONTROL_ENABLED:-1}
+      - ACCESS_CONTROL_ENABLED=${ACCESS_CONTROL_ENABLED:-0}
       - VERIFY_TOKEN_URL=${VERIFY_TOKEN_URL:-https://www.ideas.cnpc/api/common/v1/users/current?appCode=gx06hustinfrasecurity}
     volumes:
       - shared_data:/app/data
@@ -69,7 +69,7 @@ services:
     ports:
       - "8081:80"
     environment:
-      - ACCESS_CONTROL_ENABLED=${ACCESS_CONTROL_ENABLED:-1}
+      - ACCESS_CONTROL_ENABLED=${ACCESS_CONTROL_ENABLED:-0}
     depends_on:
       - api
 
@@ -151,6 +151,17 @@ services:
       - shared_data:/app/data
     depends_on:
       - logs-ingestor
+  # 12. DB Query Tool (Queries alerts/incidents DB)
+  db-query:
+    image: hanabi_db-query:latest
+    container_name: 43039infrasecurity-db-query
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - shared_data:/app/data
+      - ./test:/app/test
+    profiles:
+      - tools
 
 volumes:
   shared_data:
