@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Any, List
 from .tree_node import TreeNode
 from .branch_handlers import ProcessBranchHandler, NetworkBranchHandler, FileBranchHandler
@@ -24,7 +25,8 @@ class HBTBuilder:
         self.file_branch = self.root.add_child("file_branch", "branch")
         
         # 初始化分支处理器
-        self.eventCounter = EventCounter()
+        warmup_seconds = int(os.environ.get("HANABI_WARMUP_SECONDS", 3600))
+        self.eventCounter = EventCounter(warmup_seconds=warmup_seconds)
         self.process_handler = ProcessBranchHandler(self.process_branch)
         self.network_handler = NetworkBranchHandler(self.network_branch)
         self.file_handler = FileBranchHandler(self.file_branch)

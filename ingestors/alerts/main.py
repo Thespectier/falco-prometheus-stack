@@ -41,7 +41,8 @@ class AlertsBuffer:
 
         try:
             log_storage.add_alerts_batch(batch)
-            logger.info(f"Flushed {len(batch)} alerts to database.")
+            current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+            logger.info(f"[{current_time}] Flushed {len(batch)} alerts to database.")
         except Exception as e:
             logger.error(f"Failed to flush alerts batch: {e}")
 

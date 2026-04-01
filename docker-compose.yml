@@ -43,6 +43,7 @@ services:
       - PYTHONUNBUFFERED=1
       - LOG_STORAGE_DEBUG=1
       - ALERTS_INGESTOR_URL=http://43039infrasecurity-alerts-ingestor:9000
+      - HANABI_WARMUP_SECONDS=${HANABI_WARMUP_SECONDS:-3600}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - shared_data:/app/data
