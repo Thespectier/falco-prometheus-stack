@@ -10,6 +10,7 @@
     - "43039infrasecurity-alerts-ingestor"
     - "43039infrasecurity-reducer"
     - "43039infrasecurity-analyzer"
+    - "43039infrasecurity-db-query"
 
 - rule: process
   desc: process

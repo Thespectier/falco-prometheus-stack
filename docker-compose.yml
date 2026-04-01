@@ -1,6 +1,7 @@
 services:
   # 1. Falco Security Engine
   falco:
+    image: hanabi_falco:latest
     build:
       context: .
       dockerfile: Dockerfile.falco
@@ -16,6 +17,7 @@ services:
 
   # 2. Prometheus Exporter (Converts Falco logs to Metrics)
   exporter:
+    image: hanabi_exporter:latest
     build: 
       context: .
       dockerfile: Dockerfile.backend
@@ -31,6 +33,7 @@ services:
 
   # 3. Hanabi Worker (Processes logs for HBT & Storage)
   hanabi_worker:
+    image: hanabi_hanabi_worker:latest
     build: 
       context: .
       dockerfile: Dockerfile.backend
@@ -52,6 +55,7 @@ services:
 
   # 4. API Backend (FastAPI)
   api:
+    image: hanabi_api:latest
     build: 
       context: .
       dockerfile: Dockerfile.backend
@@ -71,6 +75,7 @@ services:
 
   # 5. Frontend (React + Nginx)
   web:
+    image: hanabi_web:latest
     build: ./web
     container_name: 43039infrasecurity-web  
     ports:
@@ -82,6 +87,7 @@ services:
 
   # 6. Prometheus (Metrics DB)
   prometheus:
+    image: hanabi_prometheus:latest
     build:
       context: .
       dockerfile: Dockerfile.prometheus
@@ -98,6 +104,7 @@ services:
 
   # 8. Logs Ingestor (Falco -> logs DB)
   logs-ingestor:
+    image: hanabi_logs-ingestor:latest
     build:
       context: .
       dockerfile: Dockerfile.backend
@@ -116,6 +123,7 @@ services:
 
   # 9. Alerts Ingestor (Hanabi Warning(T) -> alerts DB)
   alerts-ingestor:
+    image: hanabi_alerts-ingestor:latest
     build:
       context: .
       dockerfile: Dockerfile.backend
@@ -131,6 +139,7 @@ services:
 
   # 10. Reducer (periodic alerts reduction -> incidents)
   reducer:
+    image: hanabi_reducer:latest
     build:
       context: .
       dockerfile: Dockerfile.reducer
@@ -153,6 +162,7 @@ services:
 
   # 11. Analyzer (LLM Analysis for Incidents)
   analyzer:
+    image: hanabi_analyzer:latest
     build:
       context: .
       dockerfile: Dockerfile.analyzer
@@ -170,6 +180,7 @@ services:
       - logs-ingestor
   # 12. DB Query Tool (Queries alerts/incidents DB)
   db-query:
+    image: hanabi_db-query:latest
     build:
       context: .
       dockerfile: Dockerfile.test
