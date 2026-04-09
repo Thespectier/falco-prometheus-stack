@@ -16,7 +16,8 @@ RUN pip install --no-cache-dir \
     numpy \
     scikit-learn \
     tqdm \
-    httpx
+    httpx \
+    psycopg2-binary
 
 # Stage 2: Runner
 FROM python:3.14-slim

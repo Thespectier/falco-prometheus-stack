@@ -2,8 +2,10 @@ FROM python:3.11-alpine
 
 WORKDIR /app
 
-# Install sqlite3 for CLI fallback support
-RUN apk add --no-cache sqlite
+# Install postgresql-client for CLI fallback support
+RUN apk add --no-cache postgresql-client
+
+RUN pip install psycopg2-binary
 
 # Copy the test script
 COPY test/ test/

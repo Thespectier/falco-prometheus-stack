@@ -1,85 +1,74 @@
-import sqlite3
 import os
 import json
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+import psycopg2
+from psycopg2 import pool
+from psycopg2.extras import RealDictCursor, execute_batch
 
 logger = logging.getLogger("LogStorage")
 LOG_STORAGE_DEBUG = os.getenv("LOG_STORAGE_DEBUG", "0") == "1"
 
 class LogStorage:
-    def __init__(self, logs_db_path: str = "data/logs.db", alerts_db_path: str = "data/alerts.db"):
-        self.logs_db_path = logs_db_path
-        self.alerts_db_path = alerts_db_path
-        os.makedirs(os.path.dirname(logs_db_path), exist_ok=True)
-        os.makedirs(os.path.dirname(alerts_db_path), exist_ok=True)
+    def __init__(self):
+        self.db_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@postgres:5432/falco_data")
+        self.pool = None
         self._init_db()
         try:
-            logger.info(f"LogStorage initialized. Logs: {self.logs_db_path}, Alerts: {self.alerts_db_path}")
+            logger.info(f"LogStorage initialized with PG pool.")
         except Exception:
             pass
 
     def _init_db(self):
         try:
-            # Init Logs DB
-            conn_logs = sqlite3.connect(self.logs_db_path)
-            cursor_logs = conn_logs.cursor()
+            # Create a thread-safe connection pool
+            self.pool = pool.ThreadedConnectionPool(1, 20, self.db_url)
+            
+            conn = self.pool.getconn()
+            cursor = conn.cursor()
             
             # Create events table
-            # We index container_id and timestamp for faster queries
-            cursor_logs.execute('''
+            cursor.execute('''
                 CREATE TABLE IF NOT EXISTS events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     container_id TEXT NOT NULL,
-                    timestamp REAL NOT NULL,
+                    timestamp DOUBLE PRECISION NOT NULL,
                     rule TEXT,
                     priority TEXT,
                     source TEXT,
-                    output TEXT,
-                    tags TEXT,
-                    raw_event TEXT
+                    output JSONB,
+                    tags JSONB,
+                    raw_event JSONB
                 )
             ''')
-            cursor_logs.execute('CREATE INDEX IF NOT EXISTS idx_container_ts ON events (container_id, timestamp DESC)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_container_ts ON events (container_id, timestamp DESC)')
 
-            # Enable WAL mode for better concurrency and synchronous=NORMAL for better performance
-            cursor_logs.execute('PRAGMA journal_mode=WAL;')
-            cursor_logs.execute('PRAGMA synchronous=NORMAL;')
-            cursor_logs.execute('PRAGMA cache_size = -100000;') # ~100MB cache
-            
-            conn_logs.commit()
-            conn_logs.close()
-
-            # Init Alerts DB
-            conn_alerts = sqlite3.connect(self.alerts_db_path)
-            cursor_alerts = conn_alerts.cursor()
-
-            # Create alerts table for Hanabi detection-phase mismatches
-            cursor_alerts.execute('''
+            # Create alerts table
+            cursor.execute('''
                 CREATE TABLE IF NOT EXISTS alerts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     container_id TEXT NOT NULL,
-                    timestamp REAL NOT NULL,
+                    timestamp DOUBLE PRECISION NOT NULL,
                     category TEXT,
                     priority TEXT,
                     reason TEXT,
                     evt_type TEXT,
                     proc_name TEXT,
                     fd_name TEXT,
-                    output TEXT,
+                    output JSONB,
                     attribute_value TEXT
                 )
             ''')
-            cursor_alerts.execute('CREATE INDEX IF NOT EXISTS idx_alerts_container_ts ON alerts (container_id, timestamp DESC)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_alerts_container_ts ON alerts (container_id, timestamp DESC)')
 
-            # Create incidents table for reduced alerts (post-reducer)
-            cursor_alerts.execute('''
+            # Create incidents table
+            cursor.execute('''
                 CREATE TABLE IF NOT EXISTS incidents (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     container_id TEXT NOT NULL,
-                    timestamp REAL NOT NULL,
-                    threat_score REAL NOT NULL,
+                    timestamp DOUBLE PRECISION NOT NULL,
+                    threat_score DOUBLE PRECISION NOT NULL,
                     cluster_id INTEGER,
                     attribute_name TEXT,
                     attribute_value TEXT,
@@ -88,54 +77,58 @@ class LogStorage:
                     alert_content TEXT,
                     details TEXT,
                     analysis_window INTEGER,
-                    similarity_threshold REAL,
-                    created_at REAL NOT NULL,
+                    similarity_threshold DOUBLE PRECISION,
+                    created_at DOUBLE PRECISION NOT NULL,
                     analysis TEXT
                 )
             ''')
-            cursor_alerts.execute('CREATE INDEX IF NOT EXISTS idx_incidents_container_ts ON incidents (container_id, timestamp DESC)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_incidents_container_ts ON incidents (container_id, timestamp DESC)')
             
-            # Create config table for dynamic settings (e.g. LLM config)
-            cursor_alerts.execute('''
+            # Create config table
+            cursor.execute('''
                 CREATE TABLE IF NOT EXISTS config (
                     key TEXT PRIMARY KEY,
                     value TEXT
                 )
             ''')
 
-            # Enable WAL mode
-            cursor_alerts.execute('PRAGMA journal_mode=WAL;')
-            cursor_alerts.execute('PRAGMA synchronous=NORMAL;')
-
-            conn_alerts.commit()
-            conn_alerts.close()
+            conn.commit()
+            cursor.close()
+            self.pool.putconn(conn)
             
         except Exception as e:
-            logger.error(f"Failed to initialize database: {e}")
+            logger.error(f"Failed to initialize PostgreSQL database: {e}")
 
     def get_config(self, key: str) -> Optional[str]:
         try:
-            conn = sqlite3.connect(self.alerts_db_path)
+            conn = self.pool.getconn()
             cursor = conn.cursor()
-            cursor.execute("SELECT value FROM config WHERE key = ?", (key,))
+            cursor.execute("SELECT value FROM config WHERE key = %s", (key,))
             row = cursor.fetchone()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
             return row[0] if row else None
         except Exception as e:
             logger.error(f"Failed to get config {key}: {e}")
+            if conn: self.pool.putconn(conn, close=True)
             return None
 
     def set_config(self, key: str, value: str):
         try:
-            conn = sqlite3.connect(self.alerts_db_path)
+            conn = self.pool.getconn()
             cursor = conn.cursor()
-            cursor.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (key, value))
+            cursor.execute('''
+                INSERT INTO config (key, value) VALUES (%s, %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            ''', (key, value))
             conn.commit()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
             if LOG_STORAGE_DEBUG:
                 logger.info(f"Set config {key}")
         except Exception as e:
             logger.error(f"Failed to set config {key}: {e}")
+            if conn: self.pool.putconn(conn, close=True)
 
     def _prepare_event_tuple(self, event: Dict[str, Any]):
         output_fields = event.get('output_fields', {})
@@ -150,7 +143,6 @@ class LogStorage:
             container_id = 'unknown'
         container_id = str(container_id)
         
-        # Parse timestamp
         ts_val = event.get('time') or output_fields.get('evt.time') or output_fields.get('evt.time.iso8601')
         if isinstance(ts_val, str):
              try:
@@ -159,7 +151,7 @@ class LogStorage:
              except:
                  timestamp = datetime.utcnow().timestamp()
         elif isinstance(ts_val, (int, float)):
-             timestamp = ts_val if ts_val < 1e11 else ts_val / 1e9 # handle ns
+             timestamp = ts_val if ts_val < 1e11 else ts_val / 1e9
         else:
              timestamp = datetime.utcnow().timestamp()
 
@@ -175,67 +167,71 @@ class LogStorage:
     def add_event(self, event: Dict[str, Any]):
         try:
             val = self._prepare_event_tuple(event)
-            conn = sqlite3.connect(self.logs_db_path)
+            conn = self.pool.getconn()
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO events (container_id, timestamp, rule, priority, source, output, tags, raw_event)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ''', val)
-            
             conn.commit()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
             if LOG_STORAGE_DEBUG:
                 try:
-                    logger.info(f"Event stored container_id={val[0]} timestamp={val[1]} db={self.logs_db_path}")
+                    logger.info(f"Event stored container_id={val[0]} timestamp={val[1]}")
                 except Exception:
                     pass
-            
         except Exception as e:
             logger.error(f"Failed to add event to storage: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
 
     def add_event_batch(self, events: List[Dict[str, Any]]):
         if not events:
             return
         try:
             vals = [self._prepare_event_tuple(e) for e in events]
-            conn = sqlite3.connect(self.logs_db_path)
+            conn = self.pool.getconn()
             cursor = conn.cursor()
-            cursor.executemany('''
+            execute_batch(cursor, '''
                 INSERT INTO events (container_id, timestamp, rule, priority, source, output, tags, raw_event)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ''', vals)
             conn.commit()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
             if LOG_STORAGE_DEBUG:
-                logger.info(f"Batch inserted {len(events)} events to {self.logs_db_path}")
+                logger.info(f"Batch inserted {len(events)} events")
         except Exception as e:
             logger.error(f"Failed to add event batch to storage: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
 
     def get_logs(self, container_id: str, limit: int = 100, offset: int = 0, cursor_ts: Optional[float] = None) -> List[Dict[str, Any]]:
         try:
-            conn = sqlite3.connect(self.logs_db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            conn = self.pool.getconn()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
             
             if cursor_ts:
                 cursor.execute('''
                     SELECT timestamp, rule, priority, source, output, tags 
                     FROM events 
-                    WHERE container_id = ? AND timestamp < ?
+                    WHERE container_id = %s AND timestamp < %s
                     ORDER BY timestamp DESC 
-                    LIMIT ?
+                    LIMIT %s
                 ''', (container_id, cursor_ts, limit))
             else:
                 cursor.execute('''
                     SELECT timestamp, rule, priority, source, output, tags 
                     FROM events 
-                    WHERE container_id = ? 
+                    WHERE container_id = %s 
                     ORDER BY timestamp DESC 
-                    LIMIT ? OFFSET ?
+                    LIMIT %s OFFSET %s
                 ''', (container_id, limit, offset))
             
             rows = cursor.fetchall()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
             
             logs = []
             for row in rows:
@@ -244,16 +240,17 @@ class LogStorage:
                     "rule": row['rule'],
                     "priority": row['priority'],
                     "source": row['source'],
-                    "output": row['output'],
-                    "tags": json.loads(row['tags']) if row['tags'] else []
+                    "output": json.dumps(row['output']) if isinstance(row['output'], dict) else row['output'],
+                    "tags": row['tags'] if isinstance(row['tags'], list) else (json.loads(row['tags']) if row['tags'] else [])
                 })
             
             return logs
             
         except Exception as e:
             logger.error(f"Failed to query logs: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
             return []
-
 
     def _prepare_alert_tuple(self, output_fields: Dict[str, Any], category: str, reason: str, attribute_value: str = ""):
         container_id = (
@@ -287,14 +284,15 @@ class LogStorage:
     def add_alert(self, output_fields: Dict[str, Any], category: str, reason: str, attribute_value: str = ""):
         try:
             val = self._prepare_alert_tuple(output_fields, category, reason, attribute_value)
-            conn = sqlite3.connect(self.alerts_db_path)
+            conn = self.pool.getconn()
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO alerts (container_id, timestamp, category, priority, reason, evt_type, proc_name, fd_name, output, attribute_value)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', val)
             conn.commit()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
             if LOG_STORAGE_DEBUG:
                 try:
                     logger.info(f"Alert stored container_id={val[0]} category={category} reason={reason}")
@@ -302,6 +300,8 @@ class LogStorage:
                     pass
         except Exception as e:
             logger.error(f"Failed to add alert to storage: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
 
     def add_alerts_batch(self, alerts_list: List[Dict[str, Any]]):
         if not alerts_list:
@@ -316,18 +316,21 @@ class LogStorage:
                 )
                 for item in alerts_list
             ]
-            conn = sqlite3.connect(self.alerts_db_path)
+            conn = self.pool.getconn()
             cursor = conn.cursor()
-            cursor.executemany('''
+            execute_batch(cursor, '''
                 INSERT INTO alerts (container_id, timestamp, category, priority, reason, evt_type, proc_name, fd_name, output, attribute_value)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', vals)
             conn.commit()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
             if LOG_STORAGE_DEBUG:
-                logger.info(f"Batch inserted {len(alerts_list)} alerts to {self.alerts_db_path}")
+                logger.info(f"Batch inserted {len(alerts_list)} alerts")
         except Exception as e:
             logger.error(f"Failed to add alerts batch to storage: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
 
     def add_incident(
         self,
@@ -348,14 +351,14 @@ class LogStorage:
     ) -> None:
         try:
             now_ts = datetime.utcnow().timestamp()
-            conn = sqlite3.connect(self.alerts_db_path)
+            conn = self.pool.getconn()
             cursor = conn.cursor()
             cursor.execute(
                 '''
                 INSERT INTO incidents (
                     container_id, timestamp, threat_score, cluster_id, attribute_name, attribute_value,
                     event_type, process_name, alert_content, details, analysis_window, similarity_threshold, created_at, analysis
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     str(container_id), float(timestamp), float(threat_score), cluster_id,
                     attribute_name, attribute_value, event_type, process_name,
@@ -363,7 +366,8 @@ class LogStorage:
                 )
             )
             conn.commit()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
             if LOG_STORAGE_DEBUG:
                 try:
                     logger.info(
@@ -373,21 +377,26 @@ class LogStorage:
                     pass
         except Exception as e:
             logger.error(f"Failed to add incident to storage: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
 
     def update_incident_analysis(self, incident_id: int, analysis: str):
         try:
-            conn = sqlite3.connect(self.alerts_db_path)
+            conn = self.pool.getconn()
             cursor = conn.cursor()
             cursor.execute(
-                "UPDATE incidents SET analysis = ? WHERE id = ?",
+                "UPDATE incidents SET analysis = %s WHERE id = %s",
                 (analysis, incident_id)
             )
             conn.commit()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
             if LOG_STORAGE_DEBUG:
                 logger.info(f"Updated analysis for incident {incident_id}")
         except Exception as e:
             logger.error(f"Failed to update incident analysis: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
 
     def get_incidents(
         self,
@@ -397,9 +406,8 @@ class LogStorage:
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
         try:
-            conn = sqlite3.connect(self.alerts_db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            conn = self.pool.getconn()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
 
             base = '''
                 SELECT id, container_id, timestamp, threat_score, cluster_id, attribute_name, attribute_value,
@@ -409,20 +417,21 @@ class LogStorage:
             params: list[Any] = []
             where: list[str] = []
             if container_id:
-                where.append('container_id = ?')
+                where.append('container_id = %s')
                 params.append(container_id)
             if window_seconds and window_seconds > 0:
                 now_ts = datetime.utcnow().timestamp()
                 start_ts = now_ts - window_seconds
-                where.append('timestamp >= ?')
+                where.append('timestamp >= %s')
                 params.append(start_ts)
             if where:
                 base += ' WHERE ' + ' AND '.join(where)
-            base += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?'
+            base += ' ORDER BY timestamp DESC LIMIT %s OFFSET %s'
             params.extend([limit, offset])
             cursor.execute(base, params)
             rows = cursor.fetchall()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
             items = []
             for r in rows:
                 items.append({
@@ -445,6 +454,8 @@ class LogStorage:
             return items
         except Exception as e:
             logger.error(f"Failed to query incidents: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
             return []
 
     def get_funnel_stats(self, window_seconds: int = 0) -> Dict[str, int]:
@@ -453,28 +464,15 @@ class LogStorage:
             
             # 1. Query Logs count from Prometheus
             try:
-                # Use local import to avoid circular dependency
-                from api.app.services.prometheus import prometheus_service
-                import asyncio
-                pass
-            except Exception:
-                pass
-
-            # Let's use sync httpx to query Prometheus directly here.
-            import httpx
-            prometheus_url = os.getenv("PROMETHEUS_URL", "http://43039infrasecurity-exporter:9090")
-            
-            if window_seconds > 0:
-                # Query: sum(increase(syscall_events_total[30m]))
-                # Note: increase() is better for counters over a window.
-                duration_str = f"{int(window_seconds)}s" # e.g. 1800s
-                query = f'sum(increase(syscall_events_total[{duration_str}]))'
-            else:
-                # Total all time? Prometheus retention is short (1d). 
-                # But syscall_events_total is a counter. sum(syscall_events_total) gives current value.
-                query = 'sum(syscall_events_total)'
+                import httpx
+                prometheus_url = os.getenv("PROMETHEUS_URL", "http://43039infrasecurity-exporter:9090")
                 
-            try:
+                if window_seconds > 0:
+                    duration_str = f"{int(window_seconds)}s"
+                    query = f'sum(increase(syscall_events_total[{duration_str}]))'
+                else:
+                    query = 'sum(syscall_events_total)'
+                    
                 with httpx.Client(timeout=2.0) as client:
                     resp = client.get(f"{prometheus_url}/api/v1/query", params={"query": query})
                     if resp.status_code == 200:
@@ -485,27 +483,30 @@ class LogStorage:
             except Exception as e:
                 logger.error(f"Failed to query Prometheus for logs count: {e}")
 
-            # 2. Query Alerts DB for alerts and incidents (unchanged)
+            # 2. Query Postgres DB for alerts and incidents
             try:
-                conn_alerts = sqlite3.connect(self.alerts_db_path)
-                cursor_alerts = conn_alerts.cursor()
+                conn = self.pool.getconn()
+                cursor = conn.cursor()
                 
                 tables = {"alerts": "alerts", "incidents": "incidents"}
                 for key, table in tables.items():
                     try:
                         if window_seconds > 0:
                             start_ts = datetime.utcnow().timestamp() - window_seconds
-                            cursor_alerts.execute(f"SELECT COUNT(*) FROM {table} WHERE timestamp >= ?", (start_ts,))
+                            cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE timestamp >= %s", (start_ts,))
                         else:
-                            cursor_alerts.execute(f"SELECT COUNT(*) FROM {table}")
-                        row = cursor_alerts.fetchone()
+                            cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                        row = cursor.fetchone()
                         if row:
                             stats[key] = row[0]
-                    except sqlite3.OperationalError:
+                    except psycopg2.OperationalError:
                         pass
-                conn_alerts.close()
+                cursor.close()
+                self.pool.putconn(conn)
             except Exception as e:
                 logger.error(f"Failed to query alerts/incidents count: {e}")
+                if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                    self.pool.putconn(conn, close=True)
                 
             return stats
         except Exception as e:
@@ -517,22 +518,21 @@ class LogStorage:
             now_ts = datetime.utcnow().timestamp()
             use_time_filter = window_seconds is not None and window_seconds > 0
             start_ts = (now_ts - window_seconds) if use_time_filter else None
-            conn = sqlite3.connect(self.alerts_db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            conn = self.pool.getconn()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
 
             if priority and use_time_filter:
                 cursor.execute('''
                     SELECT category, priority, COUNT(*) as cnt
                     FROM alerts
-                    WHERE container_id = ? AND timestamp >= ? AND priority = ?
+                    WHERE container_id = %s AND timestamp >= %s AND priority = %s
                     GROUP BY category, priority
                 ''', (container_id, start_ts, priority))
             elif priority and not use_time_filter:
                 cursor.execute('''
                     SELECT category, priority, COUNT(*) as cnt
                     FROM alerts
-                    WHERE container_id = ? AND priority = ?
+                    WHERE container_id = %s AND priority = %s
                     GROUP BY category, priority
                 ''', (container_id, priority))
             else:
@@ -540,19 +540,20 @@ class LogStorage:
                     cursor.execute('''
                         SELECT category, priority, COUNT(*) as cnt
                         FROM alerts
-                        WHERE container_id = ? AND timestamp >= ?
+                        WHERE container_id = %s AND timestamp >= %s
                         GROUP BY category, priority
                     ''', (container_id, start_ts))
                 else:
                     cursor.execute('''
                         SELECT category, priority, COUNT(*) as cnt
                         FROM alerts
-                        WHERE container_id = ?
+                        WHERE container_id = %s
                         GROUP BY category, priority
                     ''', (container_id,))
 
             rows = cursor.fetchall()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
 
             stats = []
             for row in rows:
@@ -565,14 +566,14 @@ class LogStorage:
             return stats
         except Exception as e:
             logger.error(f"Failed to query alert stats: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
             return []
 
-# Detailed alerts query
     def get_alerts(self, container_id: str, window_seconds: int = 0, limit: int = 500, offset: int = 0) -> List[Dict[str, Any]]:
         try:
-            conn = sqlite3.connect(self.alerts_db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            conn = self.pool.getconn()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
 
             base_query = '''
                 SELECT container_id, timestamp, category, reason, evt_type, proc_name, fd_name, output, attribute_value
@@ -581,26 +582,27 @@ class LogStorage:
             params = []
             where_clauses = []
 
-            # Handle 'all' container_id
             if container_id and container_id.lower() != 'all':
-                where_clauses.append("container_id = ?")
+                where_clauses.append("container_id = %s")
                 params.append(container_id)
 
             if window_seconds and window_seconds > 0:
                 now_ts = datetime.utcnow().timestamp()
                 start_ts = now_ts - window_seconds
-                where_clauses.append("timestamp >= ?")
+                where_clauses.append("timestamp >= %s")
                 params.append(start_ts)
 
             if where_clauses:
                 base_query += " WHERE " + " AND ".join(where_clauses)
 
-            base_query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+            base_query += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
             params.extend([limit, offset])
 
             cursor.execute(base_query, params)
             rows = cursor.fetchall()
-            conn.close()
+            cursor.close()
+            self.pool.putconn(conn)
+            
             items = []
             for r in rows:
                 items.append({
@@ -611,90 +613,51 @@ class LogStorage:
                     "evt_type": r["evt_type"],
                     "proc_name": r["proc_name"],
                     "fd_name": r["fd_name"],
-                    "output": r["output"],
+                    "output": json.dumps(r["output"]) if isinstance(r["output"], dict) else r["output"],
                     "attribute_value": r["attribute_value"],
                 })
             return items
         except Exception as e:
             logger.error(f"Failed to query alerts: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
             return []
 
     def cleanup_old_data(self, retention_days: float = 0.25):
-        """
-        Delete 'events' (logs) older than retention_days.
-        Default is 0.25 days (6 hours).
-        Alerts and Incidents are preserved.
-        """
         try:
             cutoff_ts = datetime.utcnow().timestamp() - (retention_days * 86400)
-            
-            # Clean Logs DB
-            try:
-                conn_logs = sqlite3.connect(self.logs_db_path)
-                cursor_logs = conn_logs.cursor()
-                cursor_logs.execute(f"DELETE FROM events WHERE timestamp < ?", (cutoff_ts,))
-                deleted_events = cursor_logs.rowcount
-                conn_logs.commit()
-                # WAL checkpoint helps, but doesn't reclaim physical space like VACUUM
-                cursor_logs.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-                conn_logs.close()
-                if deleted_events > 0:
-                    logger.info(f"Cleanup completed. Deleted events: {deleted_events}")
-            except Exception as e:
-                logger.error(f"Failed to cleanup logs db: {e}")
-            
+            conn = self.pool.getconn()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM events WHERE timestamp < %s", (cutoff_ts,))
+            deleted_events = cursor.rowcount
+            conn.commit()
+            cursor.close()
+            self.pool.putconn(conn)
+            if deleted_events > 0:
+                logger.info(f"Cleanup completed. Deleted events: {deleted_events}")
         except Exception as e:
-            logger.error(f"Failed to run data cleanup: {e}")
+            logger.error(f"Failed to cleanup events: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
 
     def cleanup_old_alerts(self, retention_days: float = 0.125):
-        """
-        Delete 'alerts' older than retention_days.
-        Default is 0.125 days (3 hours).
-        Incidents are preserved.
-        """
         try:
             cutoff_ts = datetime.utcnow().timestamp() - (retention_days * 86400)
-            
-            # Clean Alerts DB
-            try:
-                conn_alerts = sqlite3.connect(self.alerts_db_path)
-                cursor_alerts = conn_alerts.cursor()
-                cursor_alerts.execute(f"DELETE FROM alerts WHERE timestamp < ?", (cutoff_ts,))
-                deleted_alerts = cursor_alerts.rowcount
-                conn_alerts.commit()
-                cursor_alerts.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-                conn_alerts.close()
-                if deleted_alerts > 0:
-                    logger.info(f"Alerts cleanup completed. Deleted alerts: {deleted_alerts}")
-            except Exception as e:
-                logger.error(f"Failed to cleanup alerts db: {e}")
-            
+            conn = self.pool.getconn()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM alerts WHERE timestamp < %s", (cutoff_ts,))
+            deleted_alerts = cursor.rowcount
+            conn.commit()
+            cursor.close()
+            self.pool.putconn(conn)
+            if deleted_alerts > 0:
+                logger.info(f"Alerts cleanup completed. Deleted alerts: {deleted_alerts}")
         except Exception as e:
-            logger.error(f"Failed to run alerts cleanup: {e}")
+            logger.error(f"Failed to cleanup alerts: {e}")
+            if hasattr(self, 'pool') and self.pool and 'conn' in locals() and conn:
+                self.pool.putconn(conn, close=True)
 
     def vacuum_logs_db(self):
-        """
-        Run VACUUM on logs.db to reclaim physical space.
-        This operation can be slow and may lock the database.
-        """
-        try:
-            logger.info(f"Starting VACUUM on {self.logs_db_path}...")
-            start_time = datetime.now()
-            conn_logs = sqlite3.connect(self.logs_db_path)
-            conn_logs.execute("VACUUM;")
-            conn_logs.close()
-            duration = (datetime.now() - start_time).total_seconds()
-            logger.info(f"VACUUM completed on {self.logs_db_path} in {duration:.2f}s")
-        except Exception as e:
-            logger.error(f"Failed to vacuum logs db: {e}")
+        logger.info("VACUUM is managed by PostgreSQL autovacuum daemon automatically.")
 
-# Global instance
-# Ensure the data directory exists
-# Use a path relative to the project root for local development, or /app/data for Docker
-DATA_DIR = os.getenv("DATA_DIR", "data")
-os.makedirs(DATA_DIR, exist_ok=True) 
-
-log_storage = LogStorage(
-    logs_db_path=os.path.join(DATA_DIR, "logs.db"),
-    alerts_db_path=os.path.join(DATA_DIR, "alerts.db")
-)
+log_storage = LogStorage()

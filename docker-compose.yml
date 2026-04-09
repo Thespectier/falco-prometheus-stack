@@ -1,4 +1,20 @@
 services:
+  # 0. PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: 43039infrasecurity-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=falco_data
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # 1. Falco Security Engine
   falco:
     image: hanabi_falco:latest
@@ -46,12 +62,16 @@ services:
       - PYTHONUNBUFFERED=1
       - LOG_STORAGE_DEBUG=1
       - ALERTS_INGESTOR_URL=http://43039infrasecurity-alerts-ingestor:9000
-      - HANABI_WARMUP_SECONDS=${HANABI_WARMUP_SECONDS:-3600}
+      - HANABI_WARMUP_SECONDS=${HANABI_WARMUP_SECONDS:-86400}
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/falco_data
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - shared_data:/app/data
     depends_on:
-      - falco
+      falco:
+        condition: service_started
+      postgres:
+        condition: service_healthy
 
   # 4. API Backend (FastAPI)
   api:
@@ -67,11 +87,16 @@ services:
       - DATA_DIR=/app/data
       - ACCESS_CONTROL_ENABLED=${ACCESS_CONTROL_ENABLED:-0}
       - VERIFY_TOKEN_URL=${VERIFY_TOKEN_URL:-https://www.ideas.cnpc/api/common/v1/users/current?appCode=gx06hustinfrasecurity}
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/falco_data
     volumes:
       - shared_data:/app/data
     depends_on:
-      - prometheus
-      - hanabi_worker
+      prometheus:
+        condition: service_started
+      hanabi_worker:
+        condition: service_started
+      postgres:
+        condition: service_healthy
 
   # 5. Frontend (React + Nginx)
   web:
@@ -115,11 +140,15 @@ services:
       - DATA_DIR=/app/data
       - PYTHONUNBUFFERED=1
       - LOG_STORAGE_DEBUG=1
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/falco_data
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - shared_data:/app/data
     depends_on:
-      - falco
+      falco:
+        condition: service_started
+      postgres:
+        condition: service_healthy
 
   # 9. Alerts Ingestor (Hanabi Warning(T) -> alerts DB)
   alerts-ingestor:
@@ -132,10 +161,14 @@ services:
     environment:
       - DATA_DIR=/app/data
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/falco_data
     volumes:
       - shared_data:/app/data
     depends_on:
-      - hanabi_worker
+      hanabi_worker:
+        condition: service_started
+      postgres:
+        condition: service_healthy
 
   # 10. Reducer (periodic alerts reduction -> incidents)
   reducer:
@@ -154,11 +187,16 @@ services:
       - REDUCER_THREAT_THRESHOLD=60.0
       - REDUCER_MAX_PER_CLUSTER=1
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/falco_data
     volumes:
       - shared_data:/app/data
     depends_on:
-      - prometheus
-      - alerts-ingestor
+      prometheus:
+        condition: service_started
+      alerts-ingestor:
+        condition: service_started
+      postgres:
+        condition: service_healthy
 
   # 11. Analyzer (LLM Analysis for Incidents)
   analyzer:
@@ -174,10 +212,14 @@ services:
       - DEEPSEEK_ENDPOINT=https://api.deepseek.com
       - DEEPSEEK_MODEL=deepseek-chat
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/falco_data
     volumes:
       - shared_data:/app/data
     depends_on:
-      - logs-ingestor
+      logs-ingestor:
+        condition: service_started
+      postgres:
+        condition: service_healthy
   # 12. DB Query Tool (Queries alerts/incidents DB)
   db-query:
     image: hanabi_db-query:latest
@@ -195,3 +237,4 @@ services:
 
 volumes:
   shared_data:
+  postgres_data:

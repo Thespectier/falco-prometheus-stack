@@ -24,7 +24,8 @@ RUN pip install --no-cache-dir \
     pydantic-settings \
     gunicorn \
     python-multipart \
-    rich
+    rich \
+    psycopg2-binary
 
 # Stage 2: Runner
 FROM python:3.14-slim
