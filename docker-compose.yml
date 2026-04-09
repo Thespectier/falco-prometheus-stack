@@ -220,21 +220,7 @@ services:
         condition: service_started
       postgres:
         condition: service_healthy
-  # 12. DB Query Tool (Queries alerts/incidents DB)
-  db-query:
-    image: hanabi_db-query:latest
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-    container_name: 43039infrasecurity-db-query
-    environment:
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - shared_data:/app/data
-      - ./test:/app/test
-    profiles:
-      - tools
-
+  
 volumes:
   shared_data:
   postgres_data:
