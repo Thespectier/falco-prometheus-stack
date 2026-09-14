@@ -1,11 +1,48 @@
+"""监控后端的 HTTP 入口。
+
+每个路由模块挂两遍：不带前缀的（`/api/...`）给集群内部调用与前端默认配置用，
+带业务前缀的（`/infrasecurity/api/...`）给接入网关之后的部署用。两套前缀来自
+同一张挂载表，因此这里只描述一次"模块 → 路径 → 标签"。
+"""
+
+import os
+
+import httpx
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-import httpx
-import os
-from api.app.routers import containers, alerts, overview, hbt, stream, incidents, incidents_container, config, logs
+
+from api.app.routers import (
+    alerts,
+    config,
+    containers,
+    hbt,
+    incidents,
+    incidents_container,
+    logs,
+    overview,
+    stream,
+)
 
 APP_PREFIX = "/infrasecurity"
+
+# 关闭后 verifyToken 直接放行，供内网联调使用
 ACCESS_CONTROL_ENABLED = os.getenv("ACCESS_CONTROL_ENABLED", "1").lower() not in {"0", "false", "no"}
+
+# 网关校验地址；未配置时用生产默认值
+_DEFAULT_VERIFY_URL = "https://www.ideas.cnpc/api/common/v1/users/current?appCode=gx06hustinfrasecurity"
+
+# (路由模块, 挂载路径, 标签)。顺序即注册顺序，会体现在 OpenAPI 文档里。
+_ROUTE_MOUNTS = (
+    (containers, "/api/containers", "containers"),
+    (alerts, "/api/containers/{id}/alerts", "alerts"),
+    (overview, "/api/overview", "overview"),
+    (hbt, "/api/hbt", "hbt"),
+    (stream, "/api/stream", "stream"),
+    (incidents, "/api/incidents", "incidents"),
+    (incidents_container, "/api/containers/{id}/incidents", "incidents"),
+    (config, "/api/config", "config"),
+    (logs, "/api/logs", "logs"),
+)
 
 app = FastAPI(
     title="Falco/Hanabi Monitoring API",
@@ -16,55 +53,40 @@ app = FastAPI(
     openapi_url=f"{APP_PREFIX}/openapi.json",
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Configure for production
+    allow_origins=["*"],  # TODO: 生产环境按实际前端域名收紧
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(containers.router, prefix="/api/containers", tags=["containers"])
-app.include_router(alerts.router, prefix="/api/containers/{id}/alerts", tags=["alerts"])
-app.include_router(overview.router, prefix="/api/overview", tags=["overview"])
-app.include_router(hbt.router, prefix="/api/hbt", tags=["hbt"])
-app.include_router(stream.router, prefix="/api/stream", tags=["stream"])
-app.include_router(incidents.router, prefix="/api/incidents", tags=["incidents"])
-app.include_router(incidents_container.router, prefix="/api/containers/{id}/incidents", tags=["incidents"])
-app.include_router(config.router, prefix="/api/config", tags=["config"])
-app.include_router(logs.router, prefix="/api/logs", tags=["logs"])
+for _router_module, _mount_path, _tag in _ROUTE_MOUNTS:
+    app.include_router(_router_module.router, prefix=_mount_path, tags=[_tag])
 
-app.include_router(containers.router, prefix=f"{APP_PREFIX}/api/containers", tags=["containers"])
-app.include_router(alerts.router, prefix=f"{APP_PREFIX}/api/containers/{{id}}/alerts", tags=["alerts"])
-app.include_router(overview.router, prefix=f"{APP_PREFIX}/api/overview", tags=["overview"])
-app.include_router(hbt.router, prefix=f"{APP_PREFIX}/api/hbt", tags=["hbt"])
-app.include_router(stream.router, prefix=f"{APP_PREFIX}/api/stream", tags=["stream"])
-app.include_router(incidents.router, prefix=f"{APP_PREFIX}/api/incidents", tags=["incidents"])
-app.include_router(incidents_container.router, prefix=f"{APP_PREFIX}/api/containers/{{id}}/incidents", tags=["incidents"])
-app.include_router(config.router, prefix=f"{APP_PREFIX}/api/config", tags=["config"])
-app.include_router(logs.router, prefix=f"{APP_PREFIX}/api/logs", tags=["logs"])
+# 同一批路由再挂一遍带业务前缀的路径
+for _router_module, _mount_path, _tag in _ROUTE_MOUNTS:
+    app.include_router(_router_module.router, prefix=f"{APP_PREFIX}{_mount_path}", tags=[_tag])
+
 
 @app.get("/healthz")
 @app.get(f"{APP_PREFIX}/healthz")
 async def health_check():
+    """存活探针：只表示进程可服务，不代表下游依赖健康。"""
     return {"status": "ok"}
 
 
 @app.get("/clientsecurity/verifyToken")
 @app.get(f"{APP_PREFIX}/clientsecurity/verifyToken")
 async def verify_token(token: str | None = Query(default=None)):
+    """按网关要求校验前端携带的 token，并回传当前用户信息。"""
     if not ACCESS_CONTROL_ENABLED:
         return {"success": True, "user": None}
 
     if not token:
         return {"success": False, "error": "缺少 token"}
 
-    verify_url = os.getenv(
-        "VERIFY_TOKEN_URL",
-        "https://www.ideas.cnpc/api/common/v1/users/current?appCode=gx06hustinfrasecurity",
-    )
+    verify_url = os.getenv("VERIFY_TOKEN_URL", _DEFAULT_VERIFY_URL)
 
     try:
         async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
@@ -85,4 +107,5 @@ async def verify_token(token: str | None = Query(default=None)):
 
         return {"success": True, "user": remote_json.get("data")}
     except Exception:
+        # 网关不可达与 token 无效对前端是两种提示，必须区分开
         return {"success": False, "error": "验证接口连接失败"}

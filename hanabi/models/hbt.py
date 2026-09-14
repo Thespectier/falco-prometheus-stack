@@ -1,31 +1,38 @@
-# Hierarchical Behavioral Tree (HBT) models for container behavior profiling.
-# This module defines the data structures and methods to create and manage
-# hierarchical models that represent the behavior of containers based on
-# system call events and other relevant metrics.
+"""容器级 HBT 模型入口。
 
-from typing import List, Dict, Any
+一个容器一个模型。采集侧（worker、回放脚本）只需要按类别把事件丢进来，不必
+了解树的层次：三个 add_* 方法把事件包装成与分类标签同名的 Falco 规则名，再
+交给构建器。
+"""
+
+from typing import Any, Dict
+
 from .hbt_builder import HBTBuilder
 
 
-# 一个容器对应一个 HBT 模型
-# HBT从根节点开始有三个分支，分别为进程分支，网络分支，文件分支，这个对所有的HBTModel都是一样的
-# 对于每个分支进一步细分为不同路径节点
 class HBTModel:
+    """某个容器的行为画像。"""
+
     def __init__(self, container_id: str):
         self.container_id = container_id
         self.hbt_builder = HBTBuilder(container_id)
 
-    def add_process_event(self, event: Dict[str, Any]):
-        # 处理进程相关事件，更新 process_branch
-        self.hbt_builder.add_event({"rule": "process", "output_fields": event})
+    def add_process_event(self, event: Dict[str, Any]) -> None:
+        """并入一条进程事件。"""
+        self._feed("process", event)
 
-    def add_network_event(self, event: Dict[str, Any]):
-        # 处理网络相关事件，更新 network_branch
-        self.hbt_builder.add_event({"rule": "network", "output_fields": event})
+    def add_network_event(self, event: Dict[str, Any]) -> None:
+        """并入一条网络事件。"""
+        self._feed("network", event)
 
-    def add_file_event(self, event: Dict[str, Any]):
-        # 处理文件相关事件，更新 file_branch
-        self.hbt_builder.add_event({"rule": "file", "output_fields": event})
+    def add_file_event(self, event: Dict[str, Any]) -> None:
+        """并入一条文件事件。"""
+        self._feed("file", event)
 
     def get_model(self) -> Dict[str, Any]:
+        """导出当前模型。"""
         return self.hbt_builder.get_model()
+
+    def _feed(self, category: str, event: Dict[str, Any]) -> None:
+        """按分支标签把事件交给构建器。"""
+        self.hbt_builder.add_event({"rule": category, "output_fields": event})

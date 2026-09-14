@@ -5,12 +5,49 @@ import { api } from '../api/client';
 
 const { Title, Text } = Typography;
 
-const Settings: React.FC = () => {
-  const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
+/**
+ * 大模型配置的表单项。
+ *
+ * `secret` 的项用密码框：读取接口只回掩码，用户不填就保持原值不变。
+ */
+const LLM_FIELDS = [
+  {
+    label: 'API Endpoint',
+    name: 'endpoint',
+    placeholder: 'https://api.deepseek.com',
+    required: true,
+    requiredMessage: 'Please enter API endpoint',
+    secret: false,
+  },
+  {
+    label: 'Model Name',
+    name: 'model',
+    placeholder: 'deepseek-chat',
+    required: true,
+    requiredMessage: 'Please enter model name',
+    secret: false,
+  },
+  {
+    label: 'API Key',
+    name: 'api_key',
+    placeholder: 'Leave empty to keep unchanged',
+    required: false,
+    requiredMessage: 'Please enter API key',
+    secret: true,
+  },
+];
+
+/**
+ * 载入配置并处理保存。
+ *
+ * 保存后回读一次：后端会把 api_key 掩码后再返回，这样界面上不会留着刚输入的明文，
+ * 用户也能立刻看到当前生效的值。
+ */
+function useLLMConfigForm(form: ReturnType<typeof Form.useForm>[0]) {
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const fetchConfig = async () => {
+    const loadConfig = async () => {
       try {
         const config = await api.getLLMConfig();
         form.setFieldsValue(config);
@@ -18,25 +55,29 @@ const Settings: React.FC = () => {
         message.error('Failed to load settings');
       }
     };
-    fetchConfig();
+    loadConfig();
   }, [form]);
 
-  const onFinish = async (values: any) => {
-    setLoading(true);
+  const save = async (values: any) => {
+    setSaving(true);
     try {
       await api.setLLMConfig(values);
       message.success('Settings saved successfully');
-      // Reset form to reload from backend (which might have masked keys)
-      // or simply clear sensitive fields if desired.
-      // Here we just reload the config to ensure sync.
       const config = await api.getLLMConfig();
       form.setFieldsValue(config);
     } catch (error) {
       message.error('Failed to save settings');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  return { saving, save };
+}
+
+const Settings: React.FC = () => {
+  const [form] = Form.useForm();
+  const { saving, save } = useLLMConfigForm(form);
 
   return (
     <div style={{ padding: '24px', maxWidth: 800, margin: '0 auto' }}>
@@ -56,38 +97,27 @@ const Settings: React.FC = () => {
             <Form
               form={form}
               layout="vertical"
-              onFinish={onFinish}
+              onFinish={save}
               initialValues={{
                 endpoint: 'https://api.deepseek.com',
                 model: 'deepseek-chat'
               }}
             >
-              <Form.Item
-                label="API Endpoint"
-                name="endpoint"
-                rules={[{ required: true, message: 'Please enter API endpoint' }]}
-              >
-                <Input placeholder="https://api.deepseek.com" />
-              </Form.Item>
-
-              <Form.Item
-                label="Model Name"
-                name="model"
-                rules={[{ required: true, message: 'Please enter model name' }]}
-              >
-                <Input placeholder="deepseek-chat" />
-              </Form.Item>
-
-              <Form.Item
-                label="API Key"
-                name="api_key"
-                rules={[{ required: false, message: 'Please enter API key' }]}
-              >
-                <Input.Password placeholder="Leave empty to keep unchanged" />
-              </Form.Item>
+              {LLM_FIELDS.map((field) => (
+                <Form.Item
+                  key={field.name}
+                  label={field.label}
+                  name={field.name}
+                  rules={[{ required: field.required, message: field.requiredMessage }]}
+                >
+                  {field.secret
+                    ? <Input.Password placeholder={field.placeholder} />
+                    : <Input placeholder={field.placeholder} />}
+                </Form.Item>
+              ))}
 
               <Form.Item>
-                <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
+                <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>
                   Save Configuration
                 </Button>
               </Form.Item>
