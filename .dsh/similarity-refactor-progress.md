@@ -494,7 +494,7 @@ formatter 函数）**不在黄金输出里**，所以我没有动它。
 ## 第 17 轮：独立开发过程说明（审查材料）
 
 执行 `originality-evidence-pack` skill，从 git 历史生成
-**`docs/independent-development-statement.md`**（89 行）：
+**`.dsh/audit/independent-development-statement.md`**（89 行）：
 
 - 项目概览与时间线：63 次提交、3 位作者、2025-10-31 → 2026-04-09（约 5 个半月）；
   按月提交量**照实列出**（含 2026-01 无提交），不做平滑
@@ -619,7 +619,7 @@ Dockerfile* text eol=lf
 | `web/docker-entrypoint.sh` | 19 行 | 容器内 12 个环境变量取值的输出比对 |
 | `prometheus/test_exporter.py` | 27 行 | 输出比对 |
 
-验证骨架 16 个脚本；审查材料 3 件（`docs/independent-development-statement.md`、
+验证骨架 16 个脚本；审查材料 3 件（`.dsh/audit/independent-development-statement.md`、
 `.dsh/audit/provenance-inventory.md`、`THIRD_PARTY_NOTICES.md`）；skill 4 个。
 
 **未做，且理由明确**
